@@ -1,1 +1,2 @@
 add_subdirectory(01_setup_test)
+add_subdirectory(02_HelloTriangle)
