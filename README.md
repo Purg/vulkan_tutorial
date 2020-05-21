@@ -10,9 +10,11 @@ Please correct me about this if I'm interpreting this incorrectly.
 
 # Vulkan SDK
 Using the LunarG Vulkan SDK found [here](https://vulkan.lunarg.com/sdk/home).
+Seemingly the only reason I'm using this is for the bundled VkLayers.
 Specifically using the latest version: `1.2.135.0`.
 Mostly because I don't know better or otherwise, and this seems to work
-currently with the Quadro P2000 on my laptop, so...
+currently with the Quadro P2000 on my laptop
+([Nvidia says 1.2 is beta here](https://developer.nvidia.com/vulkan-driver)).
 We'll see how this changes as I learn and try this on other GPUs.
 I'm open to advice.
 
