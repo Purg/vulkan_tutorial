@@ -1,5 +1,5 @@
 add_executable(hello_triangle
-        hello_triangle.cpp
+               hello_triangle.cpp
         )
 # We need to "know" to pass PROJECT_LIBRARIES here.
 # This is why KWIVER created that helper "kwiver_add_library" wrapper...

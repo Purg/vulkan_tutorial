@@ -1,32 +1,70 @@
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <iostream>
+#include <set>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
-/*******************************************************************************
- * Some simple logging stuff for now.
- */
-#define LOG_INFO( msg ) \
-  do \
-  { \
-    std::cerr << "[BASIC][ INFO] " << msg << std::endl; \
-  } while(false)
+#include <myengine/logging.h>
 
-#ifdef NDEBUG
-#define LOG_DEBUG( msg )
-#else
-#define LOG_DEBUG( msg ) \
-  do \
-  { \
-    std::cerr << "[BASIC][DEBUG] " << msg << std::endl; \
-  } while(false)
-#endif
+
+/**
+ * Check if the given vector of validation layers (strings) is supported
+ * by the current vulkan SDK.
+ *
+ * @param requested_layers Vector of requested layer names to check for.
+ * @returns True if all the requested layers were also reported as available,
+ *   false otherwise.
+ */
+bool
+check_validation_layer_support( std::vector<char const *> const &requested_layers )
+{
+  if( requested_layers.empty())
+  {
+    return true;
+  }
+  uint32_t count;
+  vkEnumerateInstanceLayerProperties(&count, nullptr);
+  // vk func wants to set to a pointer array, so initialize with the size
+  // returned in the last call.
+  std::vector<VkLayerProperties> available_layers(count);
+  vkEnumerateInstanceLayerProperties(&count, available_layers.data());
+  for( auto const &r_layer : requested_layers )
+  {
+    bool layerfound = false;
+    for( auto const &a_layer : available_layers )
+    {
+      // strcmp is critical here due to (char const*) vs (char[256]) comparison.
+      // My earlier attempt at being fancy with a set<char const*> failed due to
+      // the minor difference in types and implicit casting that would cause the
+      // comparison to fail.
+      if( strcmp(r_layer, a_layer.layerName) == 0 )
+      {
+        layerfound = true;
+        break;
+      }
+    }
+    if( !layerfound )
+    {
+      return false;
+    }
+  }
+  return true;
+}
 
 /*******************************************************************************
  * Our home for the tutorial: a hello-world like class.
+ *
+ * Notes:
+ * * Sounds like different things fill the roll of GLFW (SDL, GLUT, other
+ *   platform specific things). Sounds like a point of modularity but I don't
+ *   know enough about windowing or how its used here to know what's the common
+ *   need / operation is.
  */
 class HelloTriangleApp
 {
@@ -60,6 +98,11 @@ private:
   GLFWwindow *window;
   // A pointer to the empty `struct VkInstance_T` type.
   VkInstance vk_instance_handle;
+  // Validation layers we'll use (static because tutorial)
+  // -- ONLY USED IN INSTANCE CREATION WHEN IN DEBUG.
+  std::vector<char const *> validation_layers = {
+      "VK_LAYER_KHRONOS_validation",
+  };
 
   /**
    * Initialize GLFW window instance to use.
@@ -94,8 +137,8 @@ private:
 
   void mainLoop()
   {
-    LOG_DEBUG( "Starting main loop..." );
-    while( !glfwWindowShouldClose(window) )
+    LOG_DEBUG("Starting main loop...");
+    while( !glfwWindowShouldClose(window))
     {
       glfwPollEvents();
     }
@@ -103,14 +146,21 @@ private:
 
   void cleanUp()
   {
-    LOG_DEBUG( "Destroying vulkan instance" );
+    LOG_DEBUG("Destroying vulkan instance");
     vkDestroyInstance(this->vk_instance_handle, nullptr);
-    LOG_DEBUG( "Destroying GLFW window instance" );
+    LOG_DEBUG("Destroying GLFW window instance");
     glfwDestroyWindow(this->window);
     this->window = nullptr;
     glfwTerminate();
   }
 
+  /**
+   * Instantiate the Vulkan Instance
+   *
+   * This could probably be made into a utility func in the engine lib.
+   * Could take parameters for the app_info stuff, as well as extensions and
+   * validation layers.
+   */
   void createVulkanInstance()
   {
     // out-of-order designated initializer apparently unimplemented in g++, so
@@ -119,15 +169,13 @@ private:
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = HelloTriangleApp::APP_NAME;
     app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
-    app_info.pEngineName = "No engine? WhAt Is ThIs?";
+    app_info.pEngineName = "No myengine? WhAt Is ThIs?";
     app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
-    app_info.apiVersion = VK_API_VERSION_1_2;
+    app_info.apiVersion = VK_API_VERSION_1_1;  // Maybe derive from external
 
     VkInstanceCreateInfo create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
-    // Leave disabled the validation layers for the moment.
-    create_info.enabledLayerCount = 0;
 
     // Enable the global extensions requested by the windowing system we're
     // using (GLFW).
@@ -141,6 +189,21 @@ private:
     {
       LOG_DEBUG(".. " << glfwExtensionNameArray[i]);
     }
+    create_info.enabledExtensionCount = glfwExtensionCount;
+    create_info.ppEnabledExtensionNames = glfwExtensionNameArray;
+
+    // Leave disabled the validation layers for the moment.
+#ifdef NDEBUG
+    create_info.enabledLayerCount = 0;
+#else
+    if( !check_validation_layer_support(this->validation_layers))
+    {
+      throw std::runtime_error("Validation layers requested but not all were "
+                               "enumerated as available");
+    }
+    create_info.enabledLayerCount = (uint32_t)(validation_layers.size());
+    create_info.ppEnabledLayerNames = validation_layers.data();
+#endif
 
     // Actually create the instance...
     VkResult result = vkCreateInstance(&create_info, nullptr,
@@ -168,6 +231,6 @@ main()
               << e.what() << std::endl;
     return EXIT_FAILURE;
   }
-  LOG_DEBUG( "Exiting successfully!" );
+  LOG_DEBUG("Exiting successfully!");
   return EXIT_SUCCESS;
 }
