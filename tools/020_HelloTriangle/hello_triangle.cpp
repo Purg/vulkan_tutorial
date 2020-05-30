@@ -11,51 +11,8 @@
 #include <vulkan/vulkan.h>
 
 #include <myengine/logging.h>
+#include <myengine/vulkan/instance.h>
 
-
-/**
- * Check if the given vector of validation layers (strings) is supported
- * by the current vulkan SDK.
- *
- * @param requested_layers Vector of requested layer names to check for.
- * @returns True if all the requested layers were also reported as available,
- *   false otherwise.
- */
-bool
-check_validation_layer_support( std::vector<char const *> const &requested_layers )
-{
-  if( requested_layers.empty())
-  {
-    return true;
-  }
-  uint32_t count;
-  vkEnumerateInstanceLayerProperties(&count, nullptr);
-  // vk func wants to set to a pointer array, so initialize with the size
-  // returned in the last call.
-  std::vector<VkLayerProperties> available_layers(count);
-  vkEnumerateInstanceLayerProperties(&count, available_layers.data());
-  for( auto const &r_layer : requested_layers )
-  {
-    bool layerfound = false;
-    for( auto const &a_layer : available_layers )
-    {
-      // strcmp is critical here due to (char const*) vs (char[256]) comparison.
-      // My earlier attempt at being fancy with a set<char const*> failed due to
-      // the minor difference in types and implicit casting that would cause the
-      // comparison to fail.
-      if( strcmp(r_layer, a_layer.layerName) == 0 )
-      {
-        layerfound = true;
-        break;
-      }
-    }
-    if( !layerfound )
-    {
-      return false;
-    }
-  }
-  return true;
-}
 
 /*******************************************************************************
  * Our home for the tutorial: a hello-world like class.
@@ -72,14 +29,14 @@ public:
   char const *APP_NAME = "HelloTriangle";
 
   HelloTriangleApp()
-      : HelloTriangleApp(600, 800)
+      : HelloTriangleApp( 600, 800 )
   {}
 
   explicit HelloTriangleApp( uint32_t window_height, uint32_t window_width )
-      : win_height(window_height),
-        win_width(window_width),
-        window(nullptr),
-        vk_instance_handle(nullptr)
+      : win_height( window_height ),
+        win_width( window_width ),
+        window( nullptr ),
+        vk_instance_handle( nullptr )
   {}
 
   ~HelloTriangleApp() = default;
@@ -92,6 +49,7 @@ public:
     // Call in destructor instead?
     cleanUp();
   }
+
 
 private:
   uint32_t win_height, win_width;
@@ -114,12 +72,12 @@ private:
     {
       std::stringstream ss;
       ss << "glfwInit() returned failure code " << glfw_init_ret;
-      throw std::runtime_error(ss.str());
+      throw std::runtime_error( ss.str() );
     }
     // Prevent creation of OpenGL context.
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
     // Disable window resizing.
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint( GLFW_RESIZABLE, GLFW_FALSE );
 
     // To make full-screen, `monitor` will need to be specified and the
     // specified size will be the resolution, otherwise will be in windowed
@@ -137,8 +95,8 @@ private:
 
   void mainLoop()
   {
-    LOG_DEBUG("Starting main loop...");
-    while( !glfwWindowShouldClose(window))
+    LOG_DEBUG( "Starting main loop..." );
+    while( !glfwWindowShouldClose( window ) )
     {
       glfwPollEvents();
     }
@@ -146,10 +104,10 @@ private:
 
   void cleanUp()
   {
-    LOG_DEBUG("Destroying vulkan instance");
-    vkDestroyInstance(this->vk_instance_handle, nullptr);
-    LOG_DEBUG("Destroying GLFW window instance");
-    glfwDestroyWindow(this->window);
+    LOG_DEBUG( "Destroying vulkan instance" );
+    vkDestroyInstance( this->vk_instance_handle, nullptr );
+    LOG_DEBUG( "Destroying GLFW window instance" );
+    glfwDestroyWindow( this->window );
     this->window = nullptr;
     glfwTerminate();
   }
@@ -168,9 +126,9 @@ private:
     VkApplicationInfo app_info;
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = HelloTriangleApp::APP_NAME;
-    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
+    app_info.applicationVersion = VK_MAKE_VERSION( 0, 1, 0 );
     app_info.pEngineName = "No myengine? WhAt Is ThIs?";
-    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
+    app_info.engineVersion = VK_MAKE_VERSION( 0, 1, 0 );
     app_info.apiVersion = VK_API_VERSION_1_1;  // Maybe derive from external
 
     VkInstanceCreateInfo create_info = {};
@@ -183,11 +141,11 @@ private:
     uint32_t glfwExtensionCount = 0;
     char const **glfwExtensionNameArray;
     glfwExtensionNameArray =
-        glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-    LOG_DEBUG("GLFW Requested extension names:");
+        glfwGetRequiredInstanceExtensions( &glfwExtensionCount );
+    LOG_DEBUG( "GLFW Requested extension names:" );
     for( uint32_t i = 0; i < glfwExtensionCount; ++i )
     {
-      LOG_DEBUG(".. " << glfwExtensionNameArray[i]);
+      LOG_DEBUG( ".. " << glfwExtensionNameArray[i] );
     }
     create_info.enabledExtensionCount = glfwExtensionCount;
     create_info.ppEnabledExtensionNames = glfwExtensionNameArray;
@@ -196,26 +154,27 @@ private:
 #ifdef NDEBUG
     create_info.enabledLayerCount = 0;
 #else
-    if( !check_validation_layer_support(this->validation_layers))
+    if( !myengine::vulkan::check_instance_layer_support( this->validation_layers ) )
     {
-      throw std::runtime_error("Validation layers requested but not all were "
-                               "enumerated as available");
+      throw std::runtime_error( "Validation layers requested but not all were "
+                                "enumerated as available" );
     }
-    create_info.enabledLayerCount = (uint32_t)(validation_layers.size());
+    create_info.enabledLayerCount = (uint32_t) (validation_layers.size());
     create_info.ppEnabledLayerNames = validation_layers.data();
 #endif
 
     // Actually create the instance...
-    VkResult result = vkCreateInstance(&create_info, nullptr,
-                                       &vk_instance_handle);
+    VkResult result = vkCreateInstance( &create_info, nullptr,
+                                        &vk_instance_handle );
     if( result != VK_SUCCESS )
     {
       std::stringstream ss;
       ss << "Failed to initialize Vulkan instance with error " << result;
-      throw std::runtime_error(ss.str());
+      throw std::runtime_error( ss.str() );
     }
   }
 };
+
 
 int
 main()
@@ -227,10 +186,10 @@ main()
   }
   catch( const std::exception &e )
   {
-    std::cerr << "Caught exception (type: " << typeid(e).name() << "): "
+    std::cerr << "Caught exception (type: " << typeid( e ).name() << "): "
               << e.what() << std::endl;
     return EXIT_FAILURE;
   }
-  LOG_DEBUG("Exiting successfully!");
+  LOG_DEBUG( "Exiting successfully!" );
   return EXIT_SUCCESS;
 }
