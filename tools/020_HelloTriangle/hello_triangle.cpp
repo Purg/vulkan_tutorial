@@ -14,6 +14,24 @@
 #include <myengine/vulkan/instance.h>
 
 
+#define VK_EXT_debug_utils_NAME "VK_EXT_debug_utils"
+
+
+/**
+ * Get the required vulkan extensions by name from GLFW's API.
+ *
+ * @return Vector of required extensions by string name.
+ */
+std::vector<char const *>
+glfw_get_required_vulkan_extensions()
+{
+  uint32_t count = 0;
+  char const **name_array;
+  name_array = glfwGetRequiredInstanceExtensions( &count );
+  return std::vector<char const *>( name_array, name_array + count );
+}
+
+
 /*******************************************************************************
  * Our home for the tutorial: a hello-world like class.
  *
@@ -58,7 +76,7 @@ private:
   VkInstance vk_instance_handle;
   // Validation layers we'll use (static because tutorial)
   // -- ONLY USED IN INSTANCE CREATION WHEN IN DEBUG.
-  std::vector<char const *> validation_layers = {
+  std::vector<char const *> static_validation_layers = {
       "VK_LAYER_KHRONOS_validation",
   };
 
@@ -118,6 +136,9 @@ private:
    * This could probably be made into a utility func in the engine lib.
    * Could take parameters for the app_info stuff, as well as extensions and
    * validation layers.
+   *
+   * @throws std::runtime_error
+   *   Requested instance extension or validation layer not currently supported.
    */
   void createVulkanInstance()
   {
@@ -127,41 +148,72 @@ private:
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = HelloTriangleApp::APP_NAME;
     app_info.applicationVersion = VK_MAKE_VERSION( 0, 1, 0 );
-    app_info.pEngineName = "No myengine? WhAt Is ThIs?";
+    app_info.pEngineName = "myengine";
     app_info.engineVersion = VK_MAKE_VERSION( 0, 1, 0 );
-    app_info.apiVersion = VK_API_VERSION_1_1;  // Maybe derive from external
+    // Maybe derive from external/CMake setting?
+    app_info.apiVersion = VK_API_VERSION_1_1;
 
     VkInstanceCreateInfo create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
 
+    std::vector<char const *> inst_extensions;
+    std::vector<char const *> inst_validation_layers;
+
+    // Request extensions //////////////////////////////////////////////////////
     // Enable the global extensions requested by the windowing system we're
     // using (GLFW).
     // NOTE: This part would get swapped out if moving to SDL.
-    uint32_t glfwExtensionCount = 0;
-    char const **glfwExtensionNameArray;
-    glfwExtensionNameArray =
-        glfwGetRequiredInstanceExtensions( &glfwExtensionCount );
-    LOG_DEBUG( "GLFW Requested extension names:" );
-    for( uint32_t i = 0; i < glfwExtensionCount; ++i )
+    for( auto const &ext_name : glfw_get_required_vulkan_extensions() )
     {
-      LOG_DEBUG( ".. " << glfwExtensionNameArray[i] );
+      inst_extensions.push_back( ext_name );
     }
-    create_info.enabledExtensionCount = glfwExtensionCount;
-    create_info.ppEnabledExtensionNames = glfwExtensionNameArray;
-
-    // Leave disabled the validation layers for the moment.
-#ifdef NDEBUG
-    create_info.enabledLayerCount = 0;
-#else
-    if( !myengine::vulkan::check_instance_layer_support( this->validation_layers ) )
-    {
-      throw std::runtime_error( "Validation layers requested but not all were "
-                                "enumerated as available" );
-    }
-    create_info.enabledLayerCount = (uint32_t) (validation_layers.size());
-    create_info.ppEnabledLayerNames = validation_layers.data();
+#ifndef NDEBUG
+    inst_extensions.push_back( VK_EXT_debug_utils_NAME );
 #endif
+
+    // Request validation layers ///////////////////////////////////////////////
+#ifndef NDEBUG
+    inst_validation_layers.insert(
+        inst_validation_layers.end(),
+        static_validation_layers.cbegin(), static_validation_layers.cend() );
+#endif
+
+    // Enumerating/Checking requested extensions ///////////////////////////////
+    LOG_INFO( "Requesting Vulkan instance extensions:" );
+    for( auto const &ext_name : inst_extensions )
+    {
+      LOG_INFO( ".. '" << ext_name << "'" );
+    }
+    if( inst_extensions.empty() )
+    {
+      LOG_INFO( "(None)" );
+    }
+    if( !myengine::vulkan::check_instance_extension_support( inst_extensions ) )
+    {
+      throw std::runtime_error( "One or more instance extensions not reported "
+                                "as available." );
+    }
+    create_info.enabledExtensionCount = inst_extensions.size();
+    create_info.ppEnabledExtensionNames = inst_extensions.data();
+
+    // Enumerating/Checking requested validation layers ////////////////////////
+    LOG_INFO( "Requesting Vulkan instance validation layers:" );
+    for( auto const &layer_name : inst_validation_layers )
+    {
+      LOG_INFO( ".. '" << layer_name << "'" );
+    }
+    if( inst_validation_layers.empty() )
+    {
+      LOG_INFO( "(None)" );
+    }
+    if( !myengine::vulkan::check_instance_layer_support( inst_validation_layers ) )
+    {
+      throw std::runtime_error( "One or more instance validation layers not "
+                                "reported as available." );
+    }
+    create_info.enabledLayerCount = inst_validation_layers.size();
+    create_info.ppEnabledLayerNames = inst_validation_layers.data();
 
     // Actually create the instance...
     VkResult result = vkCreateInstance( &create_info, nullptr,
