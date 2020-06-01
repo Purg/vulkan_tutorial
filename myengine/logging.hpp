@@ -2,8 +2,8 @@
  * Basic logging macros.
  */
 
-#ifndef LOGGING_H
-#define LOGGING_H
+#ifndef LOGGING_HPP
+#define LOGGING_HPP
 
 #include <iostream>
 
@@ -30,4 +30,4 @@
     std::cerr << "[BASIC][ERROR] " << msg << std::endl; \
   } while(false)
 
-#endif //LOGGING_H
+#endif //LOGGING_HPP

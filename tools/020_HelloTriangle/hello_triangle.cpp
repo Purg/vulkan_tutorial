@@ -10,8 +10,10 @@
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan.hpp>
 
-#include <myengine/logging.h>
-#include <myengine/vulkan/instance.h>
+#include <myengine/logging.hpp>
+#include <myengine/glfw.hpp>
+#include <myengine/vulkan/devices.hpp>
+#include <myengine/vulkan/instance.hpp>
 
 
 #define VK_EXT_debug_utils_NAME "VK_EXT_debug_utils"
@@ -35,28 +37,13 @@ STATIC_INSTANCE_VALIDATION_LAYERS()
 
 
 /**
- * Get the required vulkan extensions by name from GLFW's API.
- *
- * @return Vector of required extensions by string name.
- */
-[[nodiscard]] std::vector<char const *>
-glfw_get_required_vulkan_extensions()
-{
-  uint32_t count = 0;
-  char const **name_array;
-  name_array = glfwGetRequiredInstanceExtensions( &count );
-  return std::vector<char const *>( name_array, name_array + count );
-}
-
-
-/**
  * Callback linkup with debug logging.
  *
  * The use of this callback at all is intended to be conditional on !NDEBUG.
  * With that, I guess "verbose" messages are on the table to be output?
  *
  * NOTE: The *real* way to go here is probably for this while thing to take in
- * parameterization for multiple levels of verbosity for finer grain control
+ * parametrization for multiple levels of verbosity for finer grain control
  * (e.g. want info+ logging, but just for validation types, etc.)
  */
 VKAPI_ATTR VkBool32 VKAPI_CALL
@@ -75,7 +62,7 @@ vk_debug_messenger_logging_hook(
   //       thin wrappers. Basically want to differentiate messages between
   //       different messengers. Currently I see that I will need to register
   //       different callback functions.
-  std::cerr << "Vulkan Validation Layer "
+  std::cerr << "Khronos"
             << "[" << s_severity << "]"
             << "[type::" << s_type << "] "
             << p_callback_data->pMessage << std::endl;
@@ -214,6 +201,9 @@ private:  // variables
   VkInstance m_vk_instance_handle;
   // Optional pointer to a debug messenger. May be null.
   VkDebugUtilsMessengerEXT m_vk_debug_messenger;
+  // Opaque handle to the physical device to use.
+  // Implicitly destroyed with the vulkan instance.
+  VkPhysicalDevice m_vk_physical_device;
 
 private:  // methods
   /**
@@ -244,11 +234,11 @@ private:  // methods
 
   void initVulkan()
   {
-    this->m_vk_instance_handle = createVulkanInstance();
+    m_vk_instance_handle = createVulkanInstance();
 #ifndef NDEBUG
-    this->m_vk_debug_messenger =
-        vk_createDebugMessenger( this->m_vk_instance_handle );
+    m_vk_debug_messenger = vk_createDebugMessenger( this->m_vk_instance_handle );
 #endif
+    m_vk_physical_device = pickPhysicalDevice( m_vk_instance_handle );
   }
 
   void mainLoop()
@@ -269,6 +259,9 @@ private:  // methods
 #endif
     LOG_DEBUG( "Destroying vulkan instance" );
     vkDestroyInstance( this->m_vk_instance_handle, nullptr );
+    // device implicitly destroyed
+    this->m_vk_physical_device = VK_NULL_HANDLE;
+
     LOG_DEBUG( "Destroying GLFW window instance" );
     glfwDestroyWindow( this->m_window );
     this->m_window = nullptr;
@@ -308,6 +301,7 @@ private:  // methods
     // Maybe derive from external/CMake setting?
     app_info.apiVersion = VK_API_VERSION_1_1;
 
+    // TODO: Could probably function up the create_info and
     VkInstanceCreateInfo create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
@@ -316,8 +310,8 @@ private:  // methods
     std::vector<char const *> inst_validation_layers;
 
     // Register "next" pointer to debug messenger if in debug mode /////////////
-    VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
 #ifndef NDEBUG
+    VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
     vk_debug_messenger_create_info_fill( debug_create_info );
     // linked-list insert at the head of the pNext chain.
     debug_create_info.pNext = create_info.pNext;
@@ -328,7 +322,7 @@ private:  // methods
     // Enable the global extensions requested by the windowing system we're
     // using (GLFW).
     // NOTE: This part would get swapped out if moving to SDL.
-    for( auto const &ext_name : glfw_get_required_vulkan_extensions() )
+    for( auto const &ext_name : myengine::glfw::glfw_get_required_vulkan_extensions() )
     {
       inst_extensions.push_back( ext_name );
     }
@@ -394,6 +388,43 @@ private:  // methods
     return instance;
   }
 
+  /**
+   * App-specific physical device selection criterion.
+   * @return Input device is suitable.
+   */
+  [[nodiscard]]
+  static bool
+  is_suitable_device( VkPhysicalDevice const &device )
+  {
+    VkPhysicalDeviceProperties props;
+    VkPhysicalDeviceFeatures feats;
+    vkGetPhysicalDeviceProperties( device, &props );
+    vkGetPhysicalDeviceFeatures( device, &feats );
+    LOG_DEBUG( "Considering device (" << props.deviceID << ") '" << props.deviceName << "'" );
+    // We don't apparently care for the tutorial.
+    // See https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Physical_devices_and_queue_families#page_Base-device-suitability-checks
+    // for alternative examples.
+    return true;
+  }
+
+  /**
+   * Decide which physical device is to be used.
+   *
+   * @throws std::runtime_error No physical devices
+   * @return A singular physical device handle to be used.
+   */
+  [[nodiscard]] VkPhysicalDevice
+  pickPhysicalDevice( VkInstance const &instance ) const
+  {
+    std::vector<VkPhysicalDevice> device_vec = myengine::vulkan::get_physical_devices(
+        m_vk_instance_handle,
+        [this]( VkPhysicalDevice const &device ) -> bool
+        {
+          return is_suitable_device( device );
+        }
+    );
+    return device_vec[0];
+  }
 };
 
 

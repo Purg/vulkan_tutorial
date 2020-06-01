@@ -1,7 +1,3 @@
-//
-// Created by paul on 5/26/20.
-//
-
 #ifndef MYENGINE_VULKAN_INSTANCE_H
 #define MYENGINE_VULKAN_INSTANCE_H
 
@@ -24,7 +20,6 @@ namespace myengine::vulkan
 std::vector<VkExtensionProperties>
 get_instance_extension_properties();
 
-
 /**
  * Get the available Vulkan instance layer properties.
  *
@@ -34,7 +29,6 @@ get_instance_extension_properties();
  */
 std::vector<VkLayerProperties>
 get_instance_layer_properties();
-
 
 /**
  * Check the requested Vulkan instance extension names against the available
@@ -49,7 +43,6 @@ get_instance_layer_properties();
  */
 bool
 check_instance_extension_support( std::vector<char const *> const &requested_exts );
-
 
 /**
  * Check the requested Vulkan instance layer names against the available layers
