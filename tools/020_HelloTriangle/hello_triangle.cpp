@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -17,6 +18,12 @@
 
 
 #define VK_EXT_debug_utils_NAME "VK_EXT_debug_utils"
+
+
+struct QueueFamilyIndices
+{
+  std::optional<uint32_t> graphicsFamily;
+};
 
 
 /**
@@ -401,10 +408,12 @@ private:  // methods
     vkGetPhysicalDeviceProperties( device, &props );
     vkGetPhysicalDeviceFeatures( device, &feats );
     LOG_DEBUG( "Considering device (" << props.deviceID << ") '" << props.deviceName << "'" );
-    // We don't apparently care for the tutorial.
     // See https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Physical_devices_and_queue_families#page_Base-device-suitability-checks
     // for alternative examples.
-    return true;
+
+    QueueFamilyIndices indices = {};
+    find_queue_families( device, indices );
+    return indices.graphicsFamily.has_value();
   }
 
   /**
@@ -424,6 +433,30 @@ private:  // methods
         }
     );
     return device_vec[0];
+  }
+
+  /**
+   * Update the given `QueueFamilyIndices` structure reference with the
+   * device's supported queue families.
+   *
+   * @param [in] device Physical device to query the queue properties of.
+   * @param [out] indices Structure to set queue indices to.
+   */
+  static void
+  find_queue_families( VkPhysicalDevice const &device,
+                       QueueFamilyIndices &indices )
+  {
+    auto queue_props_vec = myengine::vulkan::get_device_queue_family_properties( device );
+    int i = 0;
+    for( auto const &queue_props : queue_props_vec )
+    {
+      if( queue_props.queueFlags & VK_QUEUE_GRAPHICS_BIT )
+      {
+        indices.graphicsFamily = i;  // Why is this getting set to the last index supporting
+                                     // graphics? Why not the first?
+      }
+      ++i;
+    }
   }
 };
 

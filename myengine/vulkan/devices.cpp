@@ -39,4 +39,15 @@ get_physical_devices( VkInstance const &instance, physical_device_filter_t const
   return device_vec;
 }
 
+
+std::vector<VkQueueFamilyProperties>
+get_device_queue_family_properties( VkPhysicalDevice const &device )
+{
+  uint32_t count;
+  vkGetPhysicalDeviceQueueFamilyProperties( device, &count, nullptr );
+  std::vector<VkQueueFamilyProperties> vec( count );
+  vkGetPhysicalDeviceQueueFamilyProperties( device, &count, vec.data() );
+  return vec;
+}
+
 }

@@ -4,7 +4,7 @@
 #include <cassert>
 #include <iostream>
 
-#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.hpp>
 
 #include <myengine/logging.hpp>
 #include <myengine/glfw.hpp>
@@ -77,6 +77,14 @@ main()
     // The support for optional features like texture compression,
     // 64 bit floats and multi viewport rendering (useful for VR) can be
     // queried using `vkGetPhysicalDeviceFeatures`.
+
+    auto queue_props_vec( myengine::vulkan::get_device_queue_family_properties( device ) );
+    LOG_INFO( "    Queue Families" );
+    for( auto const &queue_props : queue_props_vec )
+    {
+      vk::to_string( vk::QueueFlagBits::eGraphics );
+      LOG_INFO( "      " << queue_props.queueCount << "x w/ Flags: " << queue_props.queueFlags );
+    }
   }
 
   return 0;
