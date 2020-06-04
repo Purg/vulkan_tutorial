@@ -1,15 +1,12 @@
 /**
  * Little tool to dump out available vulkan instance extension properties.
  */
-#include <cassert>
 #include <iostream>
 
 #include <vulkan/vulkan.hpp>
 
 #include <myengine/logging.hpp>
-#include <myengine/glfw.hpp>
-#include <myengine/vulkan/devices.hpp>
-#include <myengine/vulkan/instance.hpp>
+#include <myengine/vulkan.hpp>
 
 
 int

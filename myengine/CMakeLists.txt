@@ -6,8 +6,7 @@ set(myengine_headers_public
     exceptions.hpp
     glfw.hpp
     logging.hpp
-    vulkan/devices.hpp
-    vulkan/instance.hpp
+    vulkan.hpp
     )
 set(myengine_headers_private)
 source_group("Header Files\\Public" FILES ${myengine_headers_public})
@@ -20,9 +19,8 @@ install(
 ####################################################################################################
 # Source files
 set(myengine_source
-    vulkan/devices.cpp
-    vulkan/instance.cpp
-    glfw.cpp)
+    glfw.cpp
+    vulkan.cpp)
 
 ####################################################################################################
 # The library target

@@ -2,7 +2,6 @@
 #include <exception>
 #include <iostream>
 #include <optional>
-#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -13,8 +12,7 @@
 
 #include <myengine/logging.hpp>
 #include <myengine/glfw.hpp>
-#include <myengine/vulkan/devices.hpp>
-#include <myengine/vulkan/instance.hpp>
+#include <myengine/vulkan.hpp>
 
 
 #define VK_EXT_debug_utils_NAME "VK_EXT_debug_utils"

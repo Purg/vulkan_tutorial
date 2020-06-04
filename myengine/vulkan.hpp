@@ -1,7 +1,7 @@
-#ifndef MYENGINE_VULKAN_INSTANCE_H
-#define MYENGINE_VULKAN_INSTANCE_H
+#ifndef MYENGINE_VULKAN_HPP
+#define MYENGINE_VULKAN_HPP
 
-#include <memory>
+#include <functional>
 #include <vector>
 
 #include <vulkan/vulkan.h>
@@ -9,6 +9,10 @@
 
 namespace myengine::vulkan
 {
+
+/// Type for a function that makes some decision on an input physical device.
+typedef std::function<bool( VkPhysicalDevice const & )> physical_device_filter_t;
+
 
 /**
  * Get the available Vulkan instance extension properties.
@@ -20,6 +24,7 @@ namespace myengine::vulkan
 std::vector<VkExtensionProperties>
 get_instance_extension_properties();
 
+
 /**
  * Get the available Vulkan instance layer properties.
  *
@@ -29,6 +34,7 @@ get_instance_extension_properties();
  */
 std::vector<VkLayerProperties>
 get_instance_layer_properties();
+
 
 /**
  * Check the requested Vulkan instance extension names against the available
@@ -43,6 +49,7 @@ get_instance_layer_properties();
  */
 bool
 check_instance_extension_support( std::vector<char const *> const &requested_exts );
+
 
 /**
  * Check the requested Vulkan instance layer names against the available layers
@@ -61,6 +68,36 @@ check_instance_extension_support( std::vector<char const *> const &requested_ext
 bool
 check_instance_layer_support( std::vector<char const *> const &requested_layers );
 
+
+/// Get an enumeration of available physical devices.
+/**
+ * @param instance Vulkan instance to enumerate devices with respect to.
+ * @param filter Optional function to levy a filter criterion on enumerated devices.
+ *   Only those devices that return a true return from this function will be continued
+ *   into the output of this function.
+ *   TODO: Make change this to a score value filter instead of a boolean filter?
+ *         This doesn't even need to be here, I just wanted to fuck with function pointers.
+ *
+ * @raises std::runtime_error
+ *   Failed to enumerate physical devices via Vulkan API.
+ *
+ * @returns Vector of physical device handles, that have also optionally passed the give
+ *   `filter` function with a `true` value.s
+ */
+std::vector<VkPhysicalDevice>
+get_physical_devices( VkInstance const &instance,
+                      physical_device_filter_t const &filter = nullptr );
+
+
+/// Get an enumeration of queue family properties for the given device,
+/**
+ * @param device Physical device handle to query queue families from.
+ * @return Vector of
+ * @return
+ */
+std::vector<VkQueueFamilyProperties>
+get_device_queue_family_properties( VkPhysicalDevice const &device );
+
 }
 
-#endif //MYENGINE_VULKAN_INSTANCE_H
+#endif //MYENGINE_VULKAN_HPP
