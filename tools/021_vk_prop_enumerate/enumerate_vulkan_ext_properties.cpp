@@ -1,6 +1,7 @@
 /**
  * Little tool to dump out available vulkan instance extension properties.
  */
+#include <bitset>
 #include <iostream>
 
 #include <vulkan/vulkan.hpp>
@@ -79,8 +80,8 @@ main()
     LOG_INFO( "    Queue Families" );
     for( auto const &queue_props : queue_props_vec )
     {
-      vk::to_string( vk::QueueFlagBits::eGraphics );
-      LOG_INFO( "      " << queue_props.queueCount << "x w/ Flags: " << queue_props.queueFlags );
+      LOG_INFO( "      " << queue_props.queueCount << "x \tw/ Flags: "
+                         << std::showbase << std::bitset<8>( queue_props.queueFlags ) );
     }
   }
 
