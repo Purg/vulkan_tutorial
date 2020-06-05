@@ -99,7 +99,8 @@ get_physical_devices( VkInstance const &instance, physical_device_filter_t const
   }
   if( filter != nullptr )
   {
-    std::vector<VkPhysicalDevice> filtered_vec( device_count );
+    std::vector<VkPhysicalDevice> filtered_vec;
+    filtered_vec.reserve( device_count );
     for( auto device : device_vec )
     {
       if( filter( device ) )
