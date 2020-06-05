@@ -1,3 +1,6 @@
-# Build artifacts
+# Some variations of in-source build artifacts
+# Its generally recommended to perform out of source builds, but some IDEs,
+# like CLion, default to build trees nested under the source root (technically
+# not an "in-source" build, but still...).
 /build/
 /cmake-build-*/
