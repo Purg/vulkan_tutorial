@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 # Add the local `cmake` directory to the CMake Module path.
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 
+include( compiler_flags )
+
 # Package Dependencies
 # - Next steps: learn from KWIVER, create different "depends" cmake modules
 #   to encapsulate package specific include behavior instead of everything just
