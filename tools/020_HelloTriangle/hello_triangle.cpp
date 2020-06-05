@@ -113,7 +113,7 @@ vk_debug_messenger_create_info_fill( VkDebugUtilsMessengerCreateInfoEXT &create_
 vk_createDebugMessenger( VkInstance const &instance )
 {
   // As long as I go in order and don't skip anything, gcc is OK...
-  VkDebugUtilsMessengerCreateInfoEXT create_info{};
+  VkDebugUtilsMessengerCreateInfoEXT create_info = {};
   vk_debug_messenger_create_info_fill( create_info );
   auto create_func = (PFN_vkCreateDebugUtilsMessengerEXT)
       vkGetInstanceProcAddr( instance, "vkCreateDebugUtilsMessengerEXT" );
@@ -183,8 +183,11 @@ public:
       : m_win_height( window_height ),
         m_win_width( window_width ),
         m_window( nullptr ),
-        m_vk_instance_handle( nullptr ),
-        m_vk_debug_messenger( nullptr )
+        m_vk_instance_handle( VK_NULL_HANDLE ),
+        m_vk_debug_messenger( VK_NULL_HANDLE ),
+        m_vk_physical_device( VK_NULL_HANDLE ),
+        m_vk_logical_device( VK_NULL_HANDLE ),
+        m_vk_queue_graphics( VK_NULL_HANDLE )
   {}
 
   ~HelloTriangleApp() = default;
@@ -209,11 +212,13 @@ private:  // variables
   // Opaque handle to the physical device to use.
   // Implicitly destroyed with the vulkan instance.
   VkPhysicalDevice m_vk_physical_device;
+  // Opaque handle to the logical device for this app.
+  VkDevice m_vk_logical_device;
+  // Opaque handles for queues
+  VkQueue m_vk_queue_graphics;
 
 private:  // methods
-  /**
-   * Initialize GLFW window instance to use.
-   */
+  /// Initialize GLFW window instance to use.
   void initWindow()
   {
     int glfw_init_ret = glfwInit();
@@ -244,6 +249,19 @@ private:  // methods
     m_vk_debug_messenger = vk_createDebugMessenger( this->m_vk_instance_handle );
 #endif
     m_vk_physical_device = pickPhysicalDevice( m_vk_instance_handle );
+
+    // technically a duplicate call, see `is_suitable_device`
+    QueueFamilyIndices qf_indices = {};
+    find_queue_families( m_vk_physical_device, qf_indices );
+
+    m_vk_logical_device = create_logical_device( m_vk_physical_device, qf_indices );
+
+    LOG_DEBUG( "Let's grab the logical device's graphics queue." );
+    // Hardcoded `0` here "because we're only creating a single queue from this family."
+    // I think this is tied to the `VkDeviceQueueCreateInfo.queueCount` value which is currently
+    // set to `1` in `create_logical_device`.
+    vkGetDeviceQueue( m_vk_logical_device, qf_indices.graphicsFamily.value(), 0,
+                      &m_vk_queue_graphics );
   }
 
   void mainLoop()
@@ -257,25 +275,52 @@ private:  // methods
 
   void cleanUp()
   {
-#ifndef NDEBUG
-    LOG_DEBUG( "Destroying vulkan debug messenger" );
-    vk_destroyDebugMessenger( this->m_vk_instance_handle,
-                              this->m_vk_debug_messenger );
-#endif
-    LOG_DEBUG( "Destroying vulkan instance" );
-    vkDestroyInstance( this->m_vk_instance_handle, nullptr );
-    // device implicitly destroyed
-    this->m_vk_physical_device = VK_NULL_HANDLE;
-
-    LOG_DEBUG( "Destroying GLFW window instance" );
-    glfwDestroyWindow( this->m_window );
-    this->m_window = nullptr;
-    glfwTerminate();
+    if( m_vk_logical_device )
+    {
+      // Logical device queues are implicitly cleaned up when their respective logical device is
+      // destroyed.
+      LOG_INFO( "Destroying logical device" );
+      vkDestroyDevice( m_vk_logical_device, nullptr );
+    }
+    if( m_vk_debug_messenger )  // null if not initialized.
+    {
+      LOG_DEBUG( "Destroying vulkan debug messenger" );
+      vk_destroyDebugMessenger( this->m_vk_instance_handle,
+                                this->m_vk_debug_messenger );
+    }
+    if( m_vk_instance_handle )
+    {
+      LOG_DEBUG( "Destroying vulkan instance" );
+      vkDestroyInstance( this->m_vk_instance_handle, nullptr );
+      // physical device implicitly destroyed with instance.
+      this->m_vk_physical_device = VK_NULL_HANDLE;
+    }
+    if( m_window )
+    {
+      LOG_DEBUG( "Destroying GLFW window instance" );
+      glfwDestroyWindow( this->m_window );
+      this->m_window = nullptr;
+      glfwTerminate();
+    }
   }
 
+  //////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /// App-specific validation layer addition logic
+  void
+  populate_app_validation_layers( std::vector<char const *> &validation_layers ) const
+  {
+    // We only want to add validation layers if we're flagged for debug.
+#ifndef NDEBUG
+    auto p_validation_layers = &STATIC_INSTANCE_VALIDATION_LAYERS();
+    validation_layers.insert( validation_layers.end(),
+                              p_validation_layers->cbegin(),
+                              p_validation_layers->cend() );
+#endif
+  }
+
+  /// Instantiate the Vulkan Instance
   /**
-   * Instantiate the Vulkan Instance
-   *
    * This could probably be made into a utility func in the engine lib.
    * Could take parameters for the app_info stuff, as well as extensions and
    * validation layers.
@@ -297,7 +342,7 @@ private:  // methods
   {
     // out-of-order designated initializer apparently unimplemented in g++, so
     // not doing that here... sad...
-    VkApplicationInfo app_info;
+    VkApplicationInfo app_info = {};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = HelloTriangleApp::APP_NAME;
     app_info.applicationVersion = VK_MAKE_VERSION( 0, 1, 0 );
@@ -316,7 +361,7 @@ private:  // methods
 
     // Register "next" pointer to debug messenger if in debug mode /////////////
 #ifndef NDEBUG
-    VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
+    VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {};
     vk_debug_messenger_create_info_fill( debug_create_info );
     // linked-list insert at the head of the pNext chain.
     debug_create_info.pNext = create_info.pNext;
@@ -336,12 +381,8 @@ private:  // methods
 #endif
 
     // Request validation layers ///////////////////////////////////////////////
-#ifndef NDEBUG
-    inst_validation_layers.insert(
-        inst_validation_layers.end(),
-        STATIC_INSTANCE_VALIDATION_LAYERS().cbegin(),
-        STATIC_INSTANCE_VALIDATION_LAYERS().cend() );
-#endif
+    // NDEBUG logic bundled within function
+    populate_app_validation_layers( inst_validation_layers );
 
     // Enumerating/Checking requested extensions ///////////////////////////////
     LOG_INFO( "Requesting Vulkan instance extensions:" );
@@ -393,8 +434,8 @@ private:  // methods
     return instance;
   }
 
+  /// App-specific physical device selection criterion.
   /**
-   * App-specific physical device selection criterion.
    * @return Input device is suitable.
    */
   [[nodiscard]]
@@ -414,10 +455,9 @@ private:  // methods
     return indices.graphicsFamily.has_value();
   }
 
+  /// Decide which physical device is to be used.
   /**
-   * Decide which physical device is to be used.
-   *
-   * @throws std::runtime_error No physical devices
+   * @throws std::runtime_error No physical devices that pass the filter criterion.
    * @return A singular physical device handle to be used.
    */
   [[nodiscard]] VkPhysicalDevice
@@ -425,17 +465,25 @@ private:  // methods
   {
     std::vector<VkPhysicalDevice> device_vec = myengine::vulkan::get_physical_devices(
         m_vk_instance_handle,
-        [this]( VkPhysicalDevice const &device ) -> bool
+        []( VkPhysicalDevice const &device ) -> bool
         {
           return is_suitable_device( device );
         }
     );
+    if( device_vec.empty() )
+    {
+      throw std::runtime_error( "Zero physical devices discovered post filter." );
+    }
+    // This is a dumb initial pass. Something more should be done instead of just selecting th
+    // first one in the list.
     return device_vec[0];
   }
 
+  /// Update the given `QueueFamilyIndices` structure reference with the device's supported queue
+  /// families.
   /**
-   * Update the given `QueueFamilyIndices` structure reference with the
-   * device's supported queue families.
+   * This currently assumes that there is only one queue per tracked index type, or that the last
+   * queue family found per tracked index type is acceptable.
    *
    * @param [in] device Physical device to query the queue properties of.
    * @param [out] indices Structure to set queue indices to.
@@ -450,11 +498,79 @@ private:  // methods
     {
       if( queue_props.queueFlags & VK_QUEUE_GRAPHICS_BIT )
       {
-        indices.graphicsFamily = i;  // Why is this getting set to the last index supporting
-                                     // graphics? Why not the first?
+        // Why is this getting set to the last index supporting graphics? Why not the first?
+        // In general this method needs more fleshing out for more criterion.
+        indices.graphicsFamily = i;
       }
       ++i;
     }
+  }
+
+  /// Create logical devices for this app.
+  /**
+   * @param [in] physical_device Physical physical_device from which the logical physical_device
+   *   should be created.
+   * @param [in] qf_indices Queried queue family indices for the given device as from
+   *   `find_queue_families`.
+   *
+   * @throws std::bad_optional_access If we request the index of a queue family that the physical
+   *    device does not support.
+   * @throws std::runtime_error Failed to create the logical device.
+   *
+   * @returns Opaque handle to the newly created logical device.
+   */
+  VkDevice
+  create_logical_device( VkPhysicalDevice const &physical_device,
+                         QueueFamilyIndices const &qf_indices )
+  {
+    VkDeviceQueueCreateInfo q_create_info = {};
+    q_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    q_create_info.queueFamilyIndex = qf_indices.graphicsFamily.value();
+    // Generally only need a few concurrent queues as most.
+    // Command buffers submitted to a single queue are executed ("started") in order relative to
+    // each other. Commands submitted to different queues are unordered relative to each other
+    // without explicit synchronization (see `VkSemaphore`). Can only submit to a queue from one
+    // thread at a time (or across multiple with "external" synchronization), while different
+    // threads may submit to different queues simultaneously.
+    //
+    // So far I think the intent here is that it doesn't make sense to submit to a graphics queue
+    // asynchronously (without more complicated logic/synchronization at least).
+    q_create_info.queueCount = 1;
+    // A [0, 1] (inclusive) priority value for the queue to influence the scheduling of command
+    // buffer execution. I'm interpreting that 1.0 is the maximum priority.
+    float q_priority = 1.f;
+    q_create_info.pQueuePriorities = &q_priority;
+
+    // From Tutorial: Right now we don't need anything special, so we can simply define it and
+    // leave everything to VK_FALSE. We'll come back to this structure once we're about to start
+    // doing more interesting things with Vulkan.
+    VkPhysicalDeviceFeatures device_features = {};
+
+    // Creation info struct for the logical device.
+    VkDeviceCreateInfo d_create_info = {};
+    d_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    d_create_info.pQueueCreateInfos = &q_create_info;
+    d_create_info.queueCreateInfoCount = 1;
+    // Device specific layers are currently deprecated as of at least vulkan 1.1. The tutorial
+    // recommends setting them anyway to support older vulkan implementations. OK FINE...
+    std::vector<char const *> device_validation_layers;
+    populate_app_validation_layers( device_validation_layers );
+    d_create_info.enabledLayerCount = device_validation_layers.size();
+    d_create_info.ppEnabledLayerNames = device_validation_layers.data();
+    // Probably going to revisit this in a later tutorial chapter. Mentioned "VK_KHR_swapchain".
+    d_create_info.enabledExtensionCount = 0;
+    // The features
+    d_create_info.pEnabledFeatures = &device_features;
+
+    VkDevice logical_device = VK_NULL_HANDLE;
+    VkResult res = vkCreateDevice( physical_device, &d_create_info, nullptr, &logical_device );
+    if( res != VK_SUCCESS )
+    {
+      std::stringstream ss;
+      ss << "Failed to create logical device: " << vk::to_string( (vk::Result)res );
+      throw std::runtime_error( ss.str() );
+    }
+    return logical_device;
   }
 };
 
