@@ -360,6 +360,9 @@ private:  // methods
     std::vector<char const *> inst_validation_layers;
 
     // Register "next" pointer to debug messenger if in debug mode /////////////
+    // This is to allow debug messenger to activate for instance
+    // creation/destruction since the "main" debug messenger is created *after*
+    // instance creation.
 #ifndef NDEBUG
     VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {};
     vk_debug_messenger_create_info_fill( debug_create_info );
