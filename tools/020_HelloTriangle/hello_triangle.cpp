@@ -2,11 +2,17 @@
 #include <exception>
 #include <iostream>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
+// This define required or otherwise include Vulkan first. Some Vulkan definitions are required to
+// activate Vulkan-specific functionality.
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan.hpp>
 
@@ -21,6 +27,15 @@
 struct QueueFamilyIndices
 {
   std::optional<uint32_t> graphicsFamily;
+  std::optional<uint32_t> presentFamily;
+
+  /// If this struct instance has all its optional fields filled.
+  [[nodiscard]]
+  bool
+  is_complete() const
+  {
+    return (graphicsFamily.has_value() && presentFamily.has_value());
+  }
 };
 
 
@@ -47,9 +62,9 @@ STATIC_INSTANCE_VALIDATION_LAYERS()
  * The use of this callback at all is intended to be conditional on !NDEBUG.
  * With that, I guess "verbose" messages are on the table to be output?
  *
- * NOTE: The *real* way to go here is probably for this while thing to take in
+ * NOTE: The *real* way to go here is probably for this whole thing to take in
  * parametrization for multiple levels of verbosity for finer grain control
- * (e.g. want info+ logging, but just for validation types, etc.)
+ * (e.g. want info+ logging, but just for validation types, etc.).
  */
 VKAPI_ATTR VkBool32 VKAPI_CALL
 vk_debug_messenger_logging_hook(
@@ -58,15 +73,17 @@ vk_debug_messenger_logging_hook(
     VkDebugUtilsMessengerCallbackDataEXT const *p_callback_data,
     void *p_user_data )
 {
+  // msg_severity==INFO is actually pretty verbose. Not sure if INFO or VERBOSE is the "Debug" level
+  // but INFO seems to so far be the more verbose one. Skipping that one for the moment until
+  // something goes sideways.
+  if( msg_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT )
+  {
+    return VK_FALSE;
+  }
   std::string s_severity =
       vk::to_string( (vk::DebugUtilsMessageSeverityFlagBitsEXT)msg_severity ),
       s_type =
       vk::to_string( (vk::DebugUtilsMessageTypeFlagBitsEXT)msg_type );
-  // TODO: Lambda this function to parameterize the logging prefix used here?
-  //       or nest function with template pattern for such customization via
-  //       thin wrappers. Basically want to differentiate messages between
-  //       different messengers. Currently I see that I will need to register
-  //       different callback functions.
   std::cerr << "Khronos"
             << "[" << s_severity << "]"
             << "[type::" << s_type << "] "
@@ -107,7 +124,7 @@ vk_debug_messenger_create_info_fill( VkDebugUtilsMessengerCreateInfoEXT &create_
  * @returns Optionally created debug messenger opaque handle. This may be null
  *   if the appropriate extension function fails to dynamically load.
  *
- * @sa `createVulkanInstance` for note on `[[ nodiscard ]]` attribute.
+ * @sa `create_vulkan_instance` for note on `[[ nodiscard ]]` attribute.
  */
 [[nodiscard]] VkDebugUtilsMessengerEXT
 vk_createDebugMessenger( VkInstance const &instance )
@@ -185,20 +202,21 @@ public:
         m_window( nullptr ),
         m_vk_instance_handle( VK_NULL_HANDLE ),
         m_vk_debug_messenger( VK_NULL_HANDLE ),
+        m_vk_surface( VK_NULL_HANDLE ),
         m_vk_physical_device( VK_NULL_HANDLE ),
         m_vk_logical_device( VK_NULL_HANDLE ),
-        m_vk_queue_graphics( VK_NULL_HANDLE )
+        m_vk_queue_graphics( VK_NULL_HANDLE ),
+        m_vk_queue_present( VK_NULL_HANDLE )
   {}
 
   ~HelloTriangleApp() = default;
 
   void run()
   {
-    initWindow();
-    initVulkan();
+    m_window = initGlfwWindow();
+    initVulkan( m_window );
     mainLoop();
-    // Call in destructor instead?
-    cleanUp();
+    cleanUp();  // Call in destructor instead?
   }
 
 
@@ -209,6 +227,8 @@ private:  // variables
   VkInstance m_vk_instance_handle;
   // Optional pointer to a debug messenger. May be null.
   VkDebugUtilsMessengerEXT m_vk_debug_messenger;
+  // Rendering service for interfacing with windowing.
+  VkSurfaceKHR m_vk_surface;
   // Opaque handle to the physical device to use.
   // Implicitly destroyed with the vulkan instance.
   VkPhysicalDevice m_vk_physical_device;
@@ -216,10 +236,23 @@ private:  // variables
   VkDevice m_vk_logical_device;
   // Opaque handles for queues
   VkQueue m_vk_queue_graphics;
+  VkQueue m_vk_queue_present;
 
 private:  // methods
-  /// Initialize GLFW window instance to use.
-  void initWindow()
+  /// Tutorial: Initialize GLFW window instance to use.
+  /**
+   * Initialize GLFW and return a window handle. This should only be called once.
+   *
+   * GLFW initialization is idempotent so calling this multiple times to create multiple windows is
+   * I guess a possibility.
+   *
+   * @throws std::runtime_error Failed to initialize GLFW or create a window.
+   *
+   * @returns New GLFW window instance handle.
+   */
+  [[nodiscard]]
+  GLFWwindow *
+  initGlfwWindow() const
   {
     int glfw_init_ret = glfwInit();
     if( glfw_init_ret != GLFW_TRUE )
@@ -228,7 +261,8 @@ private:  // methods
       ss << "glfwInit() returned failure code " << glfw_init_ret;
       throw std::runtime_error( ss.str() );
     }
-    // Prevent creation of OpenGL context.
+
+    // Prevent creation of OpenGL context (because we're using Vulkan...)
     glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
     // Disable window resizing.
     glfwWindowHint( GLFW_RESIZABLE, GLFW_FALSE );
@@ -236,32 +270,61 @@ private:  // methods
     // To make full-screen, `monitor` will need to be specified and the
     // specified size will be the resolution, otherwise will be in windowed
     // mode.
-    this->m_window = glfwCreateWindow(
+    GLFWwindow *window = glfwCreateWindow(
         m_win_width, m_win_height, HelloTriangleApp::APP_NAME,
         nullptr, nullptr
     );
+    if( !window )
+    {
+      throw std::runtime_error( "Failed to create a GLFW window." );
+    }
+    return window;
   }
 
-  void initVulkan()
+  /// Tutorial: Initialize Vulkan components
+  /**
+   * @param [in] window The GLFW window instance handle to use for Vulkan surface initialization.
+   *
+   * Post-condition: The following member variables should be defined with valid handles after
+   * successful execution of this method:
+   *   - `m_vk_instance_handle`
+   *   - `m_vk_surface`
+   *   - `m_vk_physical_device`
+   *   - `m_vk_logical_device`
+   *   - `m_vk_queue_graphics`
+   * The following is optionally defined if NDEBUG is NOT defined, otherwise it is null:
+   *   - `m_vk_debug_messenger`
+   */
+  void initVulkan( GLFWwindow *window )
   {
-    m_vk_instance_handle = createVulkanInstance();
+    m_vk_instance_handle = create_vulkan_instance();
 #ifndef NDEBUG
     m_vk_debug_messenger = vk_createDebugMessenger( this->m_vk_instance_handle );
 #endif
-    m_vk_physical_device = pickPhysicalDevice( m_vk_instance_handle );
+    m_vk_surface = create_vulkan_surface( m_vk_instance_handle, window );
+    LOG_DEBUG( "Selecting physical device for use." );
+    m_vk_physical_device = pick_physical_device( m_vk_instance_handle, m_vk_surface );
 
     // technically a duplicate call, see `is_suitable_device`
+    LOG_DEBUG( "Querying queue families on final physical device for logical device creation" );
     QueueFamilyIndices qf_indices = {};
-    find_queue_families( m_vk_physical_device, qf_indices );
-
+    find_queue_families( m_vk_physical_device, m_vk_surface, qf_indices );
     m_vk_logical_device = create_logical_device( m_vk_physical_device, qf_indices );
 
-    LOG_DEBUG( "Let's grab the logical device's graphics queue." );
+    LOG_DEBUG( "Let's grab the logical device's graphics/presentation queue(s)." );
     // Hardcoded `0` here "because we're only creating a single queue from this family."
-    // I think this is tied to the `VkDeviceQueueCreateInfo.queueCount` value which is currently
-    // set to `1` in `create_logical_device`.
+    // - I think this is tied to the `VkDeviceQueueCreateInfo.queueCount` value which is currently
+    //   set to `1` in `create_logical_device`.
+    // - When the same queue family supports both graphics *and* surface presentation, then only one
+    //   queue is requested on the logical device. I presume this means that, by specifying 0 to
+    //   both of the following, we're storing the same queue handle for both graphics and present?
+    //   Is that OK? The tutorial seemed to basically recommend this by stating that we could
+    //   "prefer a physical device that supports drawing and presentation in the same queue for
+    //   improved performance".
     vkGetDeviceQueue( m_vk_logical_device, qf_indices.graphicsFamily.value(), 0,
                       &m_vk_queue_graphics );
+    vkGetDeviceQueue( m_vk_logical_device, qf_indices.presentFamily.value(), 0,
+                      &m_vk_queue_present );
   }
 
   void mainLoop()
@@ -269,8 +332,10 @@ private:  // methods
     LOG_DEBUG( "Starting main loop..." );
     while( !glfwWindowShouldClose( m_window ) )
     {
+      std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
       glfwPollEvents();
     }
+    LOG_DEBUG( "Exited main loop" );
   }
 
   void cleanUp()
@@ -287,6 +352,11 @@ private:  // methods
       LOG_DEBUG( "Destroying vulkan debug messenger" );
       vk_destroyDebugMessenger( this->m_vk_instance_handle,
                                 this->m_vk_debug_messenger );
+    }
+    if( m_vk_surface )
+    {
+      LOG_DEBUG( "Destroying vulkan surface" );
+      vkDestroySurfaceKHR( m_vk_instance_handle, m_vk_surface, nullptr );
     }
     if( m_vk_instance_handle )
     {
@@ -307,8 +377,8 @@ private:  // methods
   //////////////////////////////////////////////////////////////////////////////////////////////////
 
   /// App-specific validation layer addition logic
-  void
-  populate_app_validation_layers( std::vector<char const *> &validation_layers ) const
+  static void
+  populate_app_validation_layers( std::vector<char const *> &validation_layers )
   {
     // We only want to add validation layers if we're flagged for debug.
 #ifndef NDEBUG
@@ -338,7 +408,7 @@ private:  // methods
    *   Requested instance extension or validation layer not currently supported.
    */
   [[nodiscard]] VkInstance
-  createVulkanInstance() const
+  create_vulkan_instance() const
   {
     // out-of-order designated initializer apparently unimplemented in g++, so
     // not doing that here... sad...
@@ -437,13 +507,43 @@ private:  // methods
     return instance;
   }
 
+  /// Create a surface through GLFW, returning an opaque handle to the created surface.
+  /**
+   * @param [in] instance Vulkan instance to use for surface creation.
+   * @param [in] window GLFW window
+   *
+   * @throws std::logic_error GLFW failed to think vulkan is supported.
+   * @throws std::runtime_error Failed to create the VkSurfaceKHR instance.
+   *
+   * @return Opaque handle to the created surface.
+   */
+  [[nodiscard]]
+  static VkSurfaceKHR
+  create_vulkan_surface( VkInstance const &instance, GLFWwindow *window )
+  {
+    if( glfwVulkanSupported() != GLFW_TRUE )
+    {
+      throw std::logic_error( "GLFW did not indicate vulkan is being supported" );
+    }
+
+    VkSurfaceKHR surface;
+    VkResult res = glfwCreateWindowSurface( instance, window, nullptr, &surface );
+    if( res != VK_SUCCESS )
+    {
+      std::stringstream ss;
+      ss << "Failed to create Vulkan surface through GLFW: " << vk::to_string( (vk::Result)res );
+      throw std::runtime_error( ss.str() );
+    }
+    return surface;
+  }
+
   /// App-specific physical device selection criterion.
   /**
    * @return Input device is suitable.
    */
   [[nodiscard]]
   static bool
-  is_suitable_device( VkPhysicalDevice const &device )
+  is_suitable_device( VkPhysicalDevice const &device, VkSurfaceKHR const &surface )
   {
     VkPhysicalDeviceProperties props;
     VkPhysicalDeviceFeatures feats;
@@ -454,8 +554,9 @@ private:  // methods
     // for alternative examples.
 
     QueueFamilyIndices indices = {};
-    find_queue_families( device, indices );
-    return indices.graphicsFamily.has_value();
+    find_queue_families( device, surface, indices );
+    // A device is suitable if it supports queue family indices that we care about.
+    return indices.is_complete();
   }
 
   /// Decide which physical device is to be used.
@@ -464,13 +565,13 @@ private:  // methods
    * @return A singular physical device handle to be used.
    */
   [[nodiscard]] VkPhysicalDevice
-  pickPhysicalDevice( VkInstance const &instance ) const
+  pick_physical_device( VkInstance const &instance, VkSurfaceKHR const &surface ) const
   {
     std::vector<VkPhysicalDevice> device_vec = myengine::vulkan::get_physical_devices(
         m_vk_instance_handle,
-        []( VkPhysicalDevice const &device ) -> bool
+        [&surface]( VkPhysicalDevice const &device ) -> bool
         {
-          return is_suitable_device( device );
+          return is_suitable_device( device, surface );
         }
     );
     if( device_vec.empty() )
@@ -485,32 +586,69 @@ private:  // methods
   /// Update the given `QueueFamilyIndices` structure reference with the device's supported queue
   /// families.
   /**
-   * This currently assumes that there is only one queue per tracked index type, or that the last
+   * This currently assumes that there is only one queue per tracked index type, or that the first
    * queue family found per tracked index type is acceptable.
    *
+   * We currently prefer setting the graphics and presentation indices to a queue family that
+   * supports both.
+   *
+   * TODO: Candidate for being a library utility function?
+   *
    * @param [in] device Physical device to query the queue properties of.
-   * @param [out] indices Structure to set queue indices to.
+   * @param [out] indices Structure to set queue indices to, overwriting any previous values.
+   *
+   * @throws std::runtime_error Failed to query for KHR surface support.
    */
   static void
   find_queue_families( VkPhysicalDevice const &device,
+                       VkSurfaceKHR const &surface,
                        QueueFamilyIndices &indices )
   {
-    auto queue_props_vec = myengine::vulkan::get_device_queue_family_properties( device );
+    // Tutorial: you could add logic to explicitly prefer a physical device that supports drawing
+    // and presentation in the same queue for improved performance.
+    // - Sure, why not.
+    auto queue_fam_props_vec = myengine::vulkan::get_device_queue_family_properties( device );
+    bool graphics_support;
+    VkBool32 present_support = false;
+    VkResult vk_res;
     int i = 0;
-    for( auto const &queue_props : queue_props_vec )
+    for( auto const &queue_fam_props : queue_fam_props_vec )
     {
-      if( queue_props.queueFlags & VK_QUEUE_GRAPHICS_BIT )
+      graphics_support = queue_fam_props.queueFlags & VK_QUEUE_GRAPHICS_BIT;
+      vk_res = vkGetPhysicalDeviceSurfaceSupportKHR( device, i, surface, &present_support );
+      if( vk_res != VK_SUCCESS )
       {
-        // Why is this getting set to the last index supporting graphics? Why not the first?
-        // In general this method needs more fleshing out for more criterion.
+        throw std::runtime_error( vk::to_string( (vk::Result)vk_res ) );
+      }
+      // If both indices aren't already set to the same value, and both graphics and surface
+      // presentation are supported by the current index, set it to both indices.
+      if( (!indices.is_complete()
+          || (indices.graphicsFamily.value() != indices.presentFamily.value()))
+          && graphics_support && present_support )
+      {
+        LOG_DEBUG( "Found queue_fam idx " << i << " supports both graphics and surface "
+                                                  "presentation!" );
+        indices.graphicsFamily = indices.presentFamily = i;
+      }
+      else if( !indices.graphicsFamily.has_value() && graphics_support )
+      {
+        LOG_DEBUG( "Found queue fam idx " << i << " supports graphics." );
         indices.graphicsFamily = i;
       }
+      else if( !indices.presentFamily.has_value() && (present_support == VK_TRUE) )
+      {
+        LOG_DEBUG( "Found queue fam idx " << i << " supports surface presentation." );
+        indices.presentFamily = i;
+      }
+      // Increment to the next index value.
       ++i;
     }
   }
 
   /// Create logical devices for this app.
   /**
+   * Create a logical device off of the given physical device, creating a queue
+   *
    * @param [in] physical_device Physical physical_device from which the logical physical_device
    *   should be created.
    * @param [in] qf_indices Queried queue family indices for the given device as from
@@ -522,38 +660,58 @@ private:  // methods
    *
    * @returns Opaque handle to the newly created logical device.
    */
-  VkDevice
+  [[nodiscard]]
+  static VkDevice
   create_logical_device( VkPhysicalDevice const &physical_device,
                          QueueFamilyIndices const &qf_indices )
   {
-    VkDeviceQueueCreateInfo q_create_info = {};
-    q_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    q_create_info.queueFamilyIndex = qf_indices.graphicsFamily.value();
-    // Generally only need a few concurrent queues as most.
-    // Command buffers submitted to a single queue are executed ("started") in order relative to
-    // each other. Commands submitted to different queues are unordered relative to each other
-    // without explicit synchronization (see `VkSemaphore`). Can only submit to a queue from one
-    // thread at a time (or across multiple with "external" synchronization), while different
-    // threads may submit to different queues simultaneously.
-    //
-    // So far I think the intent here is that it doesn't make sense to submit to a graphics queue
-    // asynchronously (without more complicated logic/synchronization at least).
-    q_create_info.queueCount = 1;
-    // A [0, 1] (inclusive) priority value for the queue to influence the scheduling of command
-    // buffer execution. I'm interpreting that 1.0 is the maximum priority.
+    // Unique set of queue family indices to trigger queue creation on the device.
+    // Using a set here to automatically collapse shared index values among recorded queue family
+    // indices.
+    std::set<uint32_t> q_fam_idx_set = {
+        qf_indices.graphicsFamily.value(),
+        qf_indices.presentFamily.value()
+    };
+    std::vector<VkDeviceQueueCreateInfo> q_create_info_vec;
     float q_priority = 1.f;
-    q_create_info.pQueuePriorities = &q_priority;
+
+    for( uint32_t q_fam_idx : q_fam_idx_set )
+    {
+      VkDeviceQueueCreateInfo q_create_info = {};
+      q_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+      q_create_info.queueFamilyIndex = q_fam_idx;
+      // Generally only need a few concurrent queues as most.
+      // Command buffers submitted to a single queue are executed ("started") in order relative to
+      // each other. Commands submitted to different queues are unordered relative to each other
+      // without explicit synchronization (see `VkSemaphore`). Can only submit to a queue from one
+      // thread at a time (or across multiple with "external" synchronization), while different
+      // threads may submit to different queues simultaneously.
+      //
+      // So far I think the intent here is that it doesn't make sense to submit to a graphics queue
+      // asynchronously (without more complicated logic/synchronization at least).
+      q_create_info.queueCount = 1;
+      // A [0, 1] (inclusive) priority value for the queue to influence the scheduling of command
+      // buffer execution. I'm interpreting that 1.0 is the maximum priority.
+      // - Just using the single float reference here is fine because `queueCount = 1` above.
+      q_create_info.pQueuePriorities = &q_priority;
+      // Something about setting system-wide priority level of the queue by setting a
+      // `VkDeviceQueueGlobalPriorityCreateInfoEXT` to `pNext` (I see a "realtime" option in there,
+      // maybe applicable for games?).
+
+      q_create_info_vec.push_back( q_create_info );
+    }
 
     // From Tutorial: Right now we don't need anything special, so we can simply define it and
-    // leave everything to VK_FALSE. We'll come back to this structure once we're about to start
-    // doing more interesting things with Vulkan.
+    // leave everything to initialize to VK_FALSE.
+    // We'll come back to this structure once we're about to start doing more interesting things
+    // with Vulkan.
     VkPhysicalDeviceFeatures device_features = {};
 
     // Creation info struct for the logical device.
     VkDeviceCreateInfo d_create_info = {};
     d_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    d_create_info.pQueueCreateInfos = &q_create_info;
-    d_create_info.queueCreateInfoCount = 1;
+    d_create_info.queueCreateInfoCount = q_create_info_vec.size();
+    d_create_info.pQueueCreateInfos = q_create_info_vec.data();
     // Device specific layers are currently deprecated as of at least vulkan 1.1. The tutorial
     // recommends setting them anyway to support older vulkan implementations. OK FINE...
     std::vector<char const *> device_validation_layers;

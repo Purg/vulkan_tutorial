@@ -92,8 +92,9 @@ get_physical_devices( VkInstance const &instance,
 /// Get an enumeration of queue family properties for the given device,
 /**
  * @param device Physical device handle to query queue families from.
- * @return Vector of
- * @return
+ * @return Vector of `VkQueueFamilyProperties` structs. The length of this vector is the
+ *   returned value to `pQueueFamilyPropertyCount` when calling
+ *   `vkGetPhysicalDeviceQueueFamilyProperties`.
  */
 std::vector<VkQueueFamilyProperties>
 get_device_queue_family_properties( VkPhysicalDevice const &device );
