@@ -75,8 +75,8 @@ check_instance_layer_support( std::vector<char const *> const &requested_layers 
  * @param filter Optional function to levy a filter criterion on enumerated devices.
  *   Only those devices that return a true return from this function will be continued
  *   into the output of this function.
- *   TODO: Make change this to a score value filter instead of a boolean filter?
- *         This doesn't even need to be here, I just wanted to fuck with function pointers.
+ *   NOTE: This probably doesn't need to be here or be used. I just wanted to fuck with
+ *   function pointers a little.
  *
  * @raises std::runtime_error
  *   Failed to enumerate physical devices via Vulkan API.

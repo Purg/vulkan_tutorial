@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -250,6 +251,7 @@ create_vulkan_instance( char const *app_name, uint32_t app_version,
   // creation/destruction since the "main" debug messenger is created *after*
   // instance creation.
 #ifndef NDEBUG
+  LOG_DEBUG( "Creating debug messenger specifically for the Vulkan instance." );
   VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {};
   vk_debug_messenger_create_info_fill( debug_create_info );
   // linked-list insert at the head of the pNext chain.
@@ -420,6 +422,8 @@ find_queue_families( VkPhysicalDevice const &device,
 
 /// App-specific physical device selection criterion.
 /**
+ * Binary selection criterian on those aspects that are 100% required.
+ *
  * @return Input device is suitable.
  */
 [[nodiscard]]
@@ -441,8 +445,57 @@ is_suitable_device( VkPhysicalDevice const &device, VkSurfaceKHR const &surface 
 }
 
 
+
+/// App-specific scoring of a physical device for use.
+/**
+ * @param device Physical device to score.
+ * @param surface Surface to which the device will display to to consider for scoring.
+ *
+ * @return Score for the physical device.
+ */
+uint32_t
+score_physical_device( VkPhysicalDevice const &device )
+{
+  VkPhysicalDeviceProperties props;
+  vkGetPhysicalDeviceProperties( device, &props );
+  // Not considering features yet.
+  //VkPhysicalDeviceFeatures feats;
+  //vkGetPhysicalDeviceFeatures( device, &feats );
+  LOG_DEBUG( "Scoring device (" << props.deviceID << ") '" << props.deviceName << "'" );
+
+  uint32_t score = 0;
+
+  // We are going to prefer (greater-than) DISCRETE > VIRTUAL > INTEGRATED > CPU
+  // VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+  switch( props.deviceType )
+  {
+    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+      score |= 0b1000;
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+      score |= 0b0100;
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+      score |= 0b0010;
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_CPU:
+      score |= 0b0001;
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+    default:
+      // Leave at 0.
+      break;
+  }
+
+  return score;
+}
+
+
 /// Decide which physical device is to be used.
 /**
+ * Copy return is probably OK and performant because a VkPhysicalDevice is just an opaque handle
+ * (pointer).
+ *
  * @throws std::runtime_error No physical devices that pass the filter criterion.
  * @return A singular physical device handle to be used.
  */
@@ -450,6 +503,7 @@ is_suitable_device( VkPhysicalDevice const &device, VkSurfaceKHR const &surface 
 VkPhysicalDevice
 pick_physical_device( VkInstance const &instance, VkSurfaceKHR const &surface )
 {
+  // Get available physical devices that pass initial hard selection criterion.
   std::vector<VkPhysicalDevice> device_vec = myengine::vulkan::get_physical_devices(
       instance,
       [&surface]( VkPhysicalDevice const &device ) -> bool
@@ -457,10 +511,30 @@ pick_physical_device( VkInstance const &instance, VkSurfaceKHR const &surface )
         return is_suitable_device( device, surface );
       }
   );
+  LOG_DEBUG( "Found " << device_vec.size() << " physical devices after hard selection." );
+
   if( device_vec.empty() )
   {
     throw std::runtime_error( "Zero physical devices discovered post filter." );
   }
+
+  if( device_vec.size() > 1 )
+  {
+    LOG_INFO( "Found more than one suitable physical device! " );
+    // Sort available devices by score.
+    std::stable_sort(
+        device_vec.begin(), device_vec.end(),
+        []( VkPhysicalDevice const &d1, VkPhysicalDevice const &d2 ) -> bool
+        {
+          return score_physical_device( d1 ) > score_physical_device( d2 );
+        }
+    );
+    // Get the name for reporting.
+    VkPhysicalDeviceProperties p = {};
+    vkGetPhysicalDeviceProperties( device_vec[0], &p );
+    LOG_INFO( "Using '" << p.deviceName << "' with the highest score." );
+  }
+
   // This is a dumb initial pass. Something more should be done instead of just selecting th
   // first one in the list.
   return device_vec[0];
@@ -676,8 +750,10 @@ private:  // methods
    */
   void initVulkan( GLFWwindow *window )
   {
+    LOG_DEBUG( "Creating application instance handle" );
     m_vk_instance_handle = create_vulkan_instance( APP_NAME, VK_MAKE_VERSION( 0, 1, 0 ) );
 #ifndef NDEBUG
+    LOG_DEBUG( "Creating debug messenger." );
     m_vk_debug_messenger = vk_createDebugMessenger( this->m_vk_instance_handle );
 #endif
     m_vk_surface = create_vulkan_surface( m_vk_instance_handle, window );
