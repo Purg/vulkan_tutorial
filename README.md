@@ -8,7 +8,10 @@ if I'm reading the source repository's README section about licenses
 ([here](https://github.com/Overv/VulkanTutorial#license)).
 Please correct me about this if I'm interpreting this incorrectly.
 
-# Vulkan SDK
+# Dependencies
+TODO: Write CMake to optionally automatically fetch/build required 3rd party libraries (see Fletch).
+
+## Vulkan SDK
 Using the LunarG Vulkan SDK found [here](https://vulkan.lunarg.com/sdk/home).
 Seemingly the only reason I'm using this is for the bundled VkLayers.
 Specifically using the latest version: `1.2.135.0`.
@@ -24,6 +27,27 @@ If that's desired, OK.
 Otherwise adjust `Vulkan_INCLUDE_DIR` and `Vulkan_LIBRARY` to point to your
 desired SDK parts.
 
+## GLFW (3)
+Currently following the tutorial and using GLFW for providing windowing.
+
+**CentOS 8**
+- Enable the PowerTools repository:
+  `/etc/yum.repos.d/CentOS-PowerTools.repo`
+  OR `sudo dnf config-manager --set-enabled PowerTools`
+- `sudo dnf install glfw-devel`
+
+## glm
+OpenGL math header-only library.
+Vulkan does not provide any on-build mathematics libraries or functions so we're using this to
+provide that functionality.
+I hear eigen is a possible alternative.
+
+**CentOS 8**
+- Enable the PowerTools repository:
+  `/etc/yum.repos.d/CentOS-PowerTools.repo`
+  OR `sudo dnf config-manager --set-enabled PowerTools`
+- `sudo dnf install glm-devel`
+
 # Building
 Create an out of source directory (or `build` sub-directory) for build products.
 Then to the usual CMake thing:
@@ -33,8 +57,9 @@ cmake ../
 make -j$(nproc)
 ```
 
-You may have to point unfound required package to their appropriate locations if
+You may have to point `NOT-FOUND` required packages to their appropriate locations if
 you have custom locations or using local LunarG Vulkan SDK binaries.
+
 
 # CLion Notes
 **Toolchain**:
