@@ -3,7 +3,6 @@ project(myengine)
 ####################################################################################################
 # Headers
 set(myengine_headers_public
-    exceptions.hpp
     glfw.hpp
     logging.hpp
     vulkan.hpp
