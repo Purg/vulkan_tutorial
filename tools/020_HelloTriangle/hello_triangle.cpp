@@ -785,10 +785,29 @@ private:  // methods
   void mainLoop()
   {
     LOG_DEBUG( "Starting main loop..." );
+    std::chrono::steady_clock::time_point
+        last_t = std::chrono::steady_clock::now(),
+        t = {};
+    double avg_fps = 0, now_fps = 0;
+    uint64_t avg_window = 120;
+
     while( !glfwWindowShouldClose( m_window ) )
     {
-      std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+      // Probably take this out once we're actually doing anything?
+      // Sleep optionally based on a remaining delta to "frame cap"?
+      std::this_thread::sleep_for( std::chrono::nanoseconds( 8333333 ) );
+      t = std::chrono::steady_clock::now();
+
       glfwPollEvents();
+
+      // exp: FPS logging
+      auto delta_nano = std::chrono::duration_cast<std::chrono::nanoseconds>( t - last_t ).count();
+      last_t = t;
+
+      now_fps = (1.e9 / delta_nano);
+      if( avg_fps == 0 ) avg_fps = now_fps;
+      avg_fps = ((avg_fps * (avg_window-1.)) + now_fps) / avg_window;
+//      LOG_DEBUG( "!!! FPS: " << now_fps << "(avg: " << avg_fps << ")" );
     }
     LOG_DEBUG( "Exited main loop" );
   }
@@ -836,16 +855,8 @@ int
 main()
 {
   HelloTriangleApp app;
-  try
-  {
-    app.run();
-  }
-  catch( const std::exception &e )
-  {
-    std::cerr << "Caught exception (type: " << typeid( e ).name() << "): "
-              << e.what() << std::endl;
-    return EXIT_FAILURE;
-  }
+  // Lets not eat exceptions for now...
+  app.run();
   LOG_DEBUG( "Exiting successfully!" );
   return EXIT_SUCCESS;
 }
