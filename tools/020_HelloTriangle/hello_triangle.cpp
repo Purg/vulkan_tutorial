@@ -39,6 +39,26 @@ struct QueueFamilyIndices
   }
 };
 
+struct SwapChainSupportInfo
+{
+  VkSurfaceCapabilitiesKHR capabilities;
+  std::vector<VkSurfaceFormatKHR> formats;
+  std::vector<VkPresentModeKHR> present_modes;
+
+  /// Default constructor
+  SwapChainSupportInfo()
+      : capabilities{},
+        formats(),
+        present_modes()
+  {}
+
+  /// Copy Constructor
+  SwapChainSupportInfo( SwapChainSupportInfo const &other ) = default;
+
+  /// Move constructor
+  SwapChainSupportInfo( SwapChainSupportInfo &&other ) = default;
+};
+
 
 /**
  * Access the global static list of validation layers to be used.
@@ -55,6 +75,17 @@ STATIC_INSTANCE_VALIDATION_LAYERS()
   };
   return v;
 }
+
+
+/// Singleton vector of device extensions that our application uses.
+std::vector<char const *> const &
+STATIC_DEVICE_EXTENSIONS()
+{
+  static std::vector<char const *> const v = {
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+  };
+  return v;
+};
 
 
 /**
@@ -420,28 +451,118 @@ find_queue_families( VkPhysicalDevice const &device,
 }
 
 
+/// Check if the given phyical device supports application required extensions
+/**
+ * See `STATIC_DEVICE_EXTENSIONS` function for the vector of extensions required by this
+ * application.
+ *
+ * @param device Physical device to check.
+ * @return True if all extension
+ *
+ * @sa STATIC_DEVICE_EXTENSIONS
+ */
+[[nodiscard]]
+bool
+check_device_extensions_support( VkPhysicalDevice const &device,
+                                 std::vector<char const *> const &device_extension_names )
+{
+  uint32_t extension_count;
+  vkEnumerateDeviceExtensionProperties( device, nullptr, &extension_count, nullptr );
+  std::vector<VkExtensionProperties> available_extensions( extension_count );
+  vkEnumerateDeviceExtensionProperties( device, nullptr, &extension_count,
+                                        available_extensions.data() );
+
+  // Shallow copy required extension names into a set, removing reportedly available extensions from
+  // this. If all required extensions are supported, the set will end up empty.
+  std::set<std::string> required_extensions( device_extension_names.begin(),
+                                             device_extension_names.end() );
+  for( auto const &ext : available_extensions )
+  {
+    required_extensions.erase( ext.extensionName );
+  }
+  if( not required_extensions.empty() )
+  {
+    VkPhysicalDeviceProperties p = {};
+    vkGetPhysicalDeviceProperties( device, &p );
+    LOG_DEBUG( "Not all extensions supported for device '" << p.deviceName << "'!" );
+    for( auto const &n : required_extensions )
+    {
+      LOG_DEBUG( "\t- " << n );
+    }
+  }
+
+  return required_extensions.empty();
+}
+
+
+/// Query physical device swap-chain support information.
+/**
+ * @param device Physical device to query.
+ * @param surface
+ */
+SwapChainSupportInfo
+query_swapchain_support( VkPhysicalDevice const &device, VkSurfaceKHR const &surface )
+{
+  SwapChainSupportInfo info;
+
+  vkGetPhysicalDeviceSurfaceCapabilitiesKHR( device, surface, &info.capabilities );
+
+  uint32_t count;
+  vkGetPhysicalDeviceSurfaceFormatsKHR( device, surface, &count, nullptr );
+  if( count != 0 )
+  {
+    info.formats.resize( count );
+    vkGetPhysicalDeviceSurfaceFormatsKHR( device, surface, &count, info.formats.data() );
+  }
+
+  vkGetPhysicalDeviceSurfacePresentModesKHR( device, surface, &count, nullptr );
+  if( count != 0 )
+  {
+    info.present_modes.resize( count );
+    vkGetPhysicalDeviceSurfacePresentModesKHR( device, surface, &count, info.present_modes.data() );
+  }
+
+  return info;
+}
+
+
 /// App-specific physical device selection criterion.
 /**
- * Binary selection criterian on those aspects that are 100% required.
+ * Binary selection criterion on those aspects that are 100% required.
+ *
+ * @param device Physical device to check suitability of.
+ * @param surface Consider this surface in suitability checks.
+ * @param device_extension_names Required device extension names. This is empty by default.
  *
  * @return Input device is suitable.
  */
 [[nodiscard]]
 bool
-is_suitable_device( VkPhysicalDevice const &device, VkSurfaceKHR const &surface )
+is_suitable_device( VkPhysicalDevice const &device, VkSurfaceKHR const &surface,
+                    std::vector<char const *> const &device_extension_names = {} )
 {
   VkPhysicalDeviceProperties props;
-  VkPhysicalDeviceFeatures feats;
   vkGetPhysicalDeviceProperties( device, &props );
-  vkGetPhysicalDeviceFeatures( device, &feats );
   LOG_DEBUG( "Considering device (" << props.deviceID << ") '" << props.deviceName << "'" );
   // See https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Physical_devices_and_queue_families#page_Base-device-suitability-checks
   // for alternative examples.
 
+  // A device is suitable if it supports queue family indices that we care about.
   QueueFamilyIndices indices = {};
   find_queue_families( device, surface, indices );
-  // A device is suitable if it supports queue family indices that we care about.
-  return indices.is_complete();
+
+  // A device is suitable if it supports the device extensions this application desires.
+  // - parameterize vector of layers?
+  bool extensions_supported = check_device_extensions_support( device, device_extension_names );
+
+  bool swapchain_adequate = false;
+  if( extensions_supported )
+  {
+    SwapChainSupportInfo sc_info = query_swapchain_support( device, surface );
+    swapchain_adequate = (!sc_info.formats.empty() && !sc_info.present_modes.empty());
+  }
+
+  return indices.is_complete() && extensions_supported && swapchain_adequate;
 }
 
 
@@ -496,19 +617,26 @@ score_physical_device( VkPhysicalDevice const &device )
  * Copy return is probably OK and performant because a VkPhysicalDevice is just an opaque handle
  * (pointer).
  *
+ * @param instance Vulkan instance to base physical device selection from.
+ * @param surface Surface to use in dermining physical device to use.
+ * @param device_extension_names Required device extensions that must be supported. This is empty by
+ *   default.
+ *
  * @throws std::runtime_error No physical devices that pass the filter criterion.
  * @return A singular physical device handle to be used.
  */
 [[nodiscard]]
 VkPhysicalDevice
-pick_physical_device( VkInstance const &instance, VkSurfaceKHR const &surface )
+pick_physical_device( VkInstance const &instance, VkSurfaceKHR const &surface,
+                      std::vector<char const *> const &device_extension_names = {} )
 {
   // Get available physical devices that pass initial hard selection criterion.
+  LOG_DEBUG( "Getting suitable physical devices." );
   std::vector<VkPhysicalDevice> device_vec = myengine::vulkan::get_physical_devices(
       instance,
-      [&surface]( VkPhysicalDevice const &device ) -> bool
+      [&]( VkPhysicalDevice const &device ) -> bool
       {
-        return is_suitable_device( device, surface );
+        return is_suitable_device( device, surface, device_extension_names );
       }
   );
   LOG_DEBUG( "Found " << device_vec.size() << " physical devices after hard selection." );
@@ -549,6 +677,7 @@ pick_physical_device( VkInstance const &instance, VkSurfaceKHR const &surface )
  *   should be created.
  * @param [in] qf_indices Queried queue family indices for the given device as from
  *   `find_queue_families`.
+ * @param [in] device_extension_names Vector of names of the device extensions to
  *
  * @throws std::bad_optional_access If we request the index of a queue family that the physical
  *    device does not support.
@@ -559,7 +688,8 @@ pick_physical_device( VkInstance const &instance, VkSurfaceKHR const &surface )
 [[nodiscard]]
 VkDevice
 create_logical_device( VkPhysicalDevice const &physical_device,
-                       QueueFamilyIndices const &qf_indices )
+                       QueueFamilyIndices const &qf_indices,
+                       std::vector<char const *> const &device_extension_names = {} )
 {
   // Unique set of queue family indices to trigger queue creation on the device.
   // Using a set here to automatically collapse shared index values among recorded queue family
@@ -615,7 +745,8 @@ create_logical_device( VkPhysicalDevice const &physical_device,
   d_create_info.enabledLayerCount = device_validation_layers.size();
   d_create_info.ppEnabledLayerNames = device_validation_layers.data();
   // Probably going to revisit this in a later tutorial chapter. Mentioned "VK_KHR_swapchain".
-  d_create_info.enabledExtensionCount = 0;
+  d_create_info.enabledExtensionCount = device_extension_names.size();
+  d_create_info.ppEnabledExtensionNames = device_extension_names.data();
   // The features
   d_create_info.pEnabledFeatures = &device_features;
 
@@ -758,13 +889,15 @@ private:  // methods
 #endif
     m_vk_surface = create_vulkan_surface( m_vk_instance_handle, window );
     LOG_DEBUG( "Selecting physical device for use." );
-    m_vk_physical_device = pick_physical_device( m_vk_instance_handle, m_vk_surface );
+    m_vk_physical_device = pick_physical_device( m_vk_instance_handle, m_vk_surface,
+                                                 STATIC_DEVICE_EXTENSIONS() );
 
     // technically a duplicate call, see `is_suitable_device`
     LOG_DEBUG( "Querying queue families on final physical device for logical device creation" );
     QueueFamilyIndices qf_indices = {};
     find_queue_families( m_vk_physical_device, m_vk_surface, qf_indices );
-    m_vk_logical_device = create_logical_device( m_vk_physical_device, qf_indices );
+    m_vk_logical_device = create_logical_device( m_vk_physical_device, qf_indices,
+                                                 STATIC_DEVICE_EXTENSIONS() );
 
     LOG_DEBUG( "Let's grab the logical device's graphics/presentation queue(s)." );
     // Hardcoded `0` here "because we're only creating a single queue from this family."
