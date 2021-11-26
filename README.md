@@ -9,25 +9,26 @@ if I'm reading the source repository's README section about licenses
 Please correct me about this if I'm interpreting this incorrectly.
 
 # Dependencies
-TODO: Write CMake to optionally automatically fetch/build required 3rd party libraries (see Fletch).
+TODO: Write CMake to optionally automatically fetch/build required 3rd party libraries
+(see Fletch for inspiration? literally use fletch?).
 
 ## Vulkan SDK
 Using the LunarG Vulkan SDK found [here](https://vulkan.lunarg.com/sdk/home).
 Seemingly the only reason I'm using this is for the bundled VkLayers.
-Specifically using the latest version: `1.2.135.0`.
+Specifically using the version: `1.2.198.0`.
 Mostly because I don't know better or otherwise, and this seems to work
-currently with the Quadro P2000 on my laptop
-([Nvidia says 1.2 is beta here](https://developer.nvidia.com/vulkan-driver)).
+currently with the Quadro RTX3000 on my laptop
+([Nvidia says 1.2 is supported here?](https://developer.nvidia.com/vulkan-driver)).
 We'll see how this changes as I learn and try this on other GPUs.
 I'm open to advice.
 
 With the use of CMake, `find_package(Vulkan)` will possibly find a system
 install of the vulkan development shared library and headers.
 If that's desired, OK.
-Otherwise adjust `Vulkan_INCLUDE_DIR` and `Vulkan_LIBRARY` to point to your
+Otherwise, adjust `Vulkan_INCLUDE_DIR` and `Vulkan_LIBRARY` to point to your
 desired SDK parts.
 
-## GLFW (3)
+## GLFW (v3)
 Currently following the tutorial and using GLFW for providing windowing.
 
 **CentOS 8**
@@ -40,7 +41,7 @@ Currently following the tutorial and using GLFW for providing windowing.
 OpenGL math header-only library.
 Vulkan does not provide any on-build mathematics libraries or functions so we're using this to
 provide that functionality.
-I hear eigen is a possible alternative.
+I hear eigen is a possible alternative?
 
 **CentOS 8**
 - Enable the PowerTools repository:

@@ -6,10 +6,10 @@
 
 include( CheckCXXCompilerFlag )
 
-define_property( GLOBAL PROPERTY project_warnings
-                 BRIEF_DOCS "Warning flags for project build"
-                 FULL_DOCS "List of warning flags project will build with."
-                 )
+define_property( GLOBAL PROPERTY global_prop_project_cxx_flags
+  BRIEF_DOCS "Warning flags for project build"
+  FULL_DOCS "List of warning flags project will build with."
+  )
 
 #
 # Helper function for adding compiler flags.
@@ -29,7 +29,7 @@ function( project_check_compiler_flag )
     string( REPLACE "/" "slash" safeflag "${safeflag}" )
     check_cxx_compiler_flag( "${flag}" "has_compiler_flag-${safeflag}" )
     if( has_compiler_flag-${safeflag} )
-      set_property( GLOBAL APPEND PROPERTY project_warnings "${flag}" )
+      set_property( GLOBAL APPEND PROPERTY global_prop_project_cxx_flags "${flag}" )
       return()
     endif()
   endforeach()
@@ -44,16 +44,16 @@ endfunction()
 #
 # Encapsulate sections into sub-modules if they grow much beyond a few lines or add additional
 # logic.
-if (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+if( CMAKE_CXX_COMPILER_ID MATCHES "MSVC" )
   message( WARNING "No explicit flag support for MSVC yet." )
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+elseif( CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
   message( WARNING "No explicit flag support for Clang yet." )
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+elseif( CMAKE_CXX_COMPILER_ID MATCHES "GNU" )
   project_check_compiler_flag( -Wall )
 endif()
 
 
-get_property( project_cxx_flags GLOBAL PROPERTY "project_warnings"  )
+get_property( project_cxx_flags GLOBAL PROPERTY "global_prop_project_cxx_flags" )
 string( REPLACE ";" " " project_cxx_flags "${project_cxx_flags}" )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${project_cxx_flags}" )
 message( STATUS "Using CXX flags after checks: ${CMAKE_CXX_FLAGS}" )

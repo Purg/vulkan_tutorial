@@ -33,24 +33,7 @@ namespace myengine::logging
  * @return String representing elapsed time since the start of logging in the format
  *   "HHHH:MM:SS.DDDDDD" (H=hours, M=minutes, S=seconds, D=decimal seconds).
  */
-std::string
-now_str()
-{
-  typedef std::chrono::steady_clock clock_t;
-  typedef clock_t::rep rep_t;
-  static auto const first_t = clock_t::now();
-  // This should be in nanoseconds (steady_clock::duration == chrono::nanoseconds)
-  auto delta_nano =
-      std::chrono::duration_cast<std::chrono::nanoseconds>( clock_t::now() - first_t ).count();
-  auto micro = delta_nano % (rep_t)1e9 / 1000,
-      seconds = delta_nano / (rep_t)1e9,
-      hours = seconds / 3600,
-      minutes = seconds % 3600 / 60;
-  seconds = seconds % 3600 % 60;
-  char buf[18];  // HHHH:MM:SS.DDDDDD<NULL>
-  snprintf( buf, 18, "%04ld:%02ld:%02ld.%06ld", hours, minutes, seconds, micro );
-  return std::string( buf );
-}
+std::string now_str();
 
 }
 
