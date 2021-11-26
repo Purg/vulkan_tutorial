@@ -1,6 +1,7 @@
 cmake_minimum_required( VERSION 3.10.2 )
 project( vulkan_tutorial VERSION 0.1.0 )
 
+option( BUILD_SHARED_LIBS "Build libraries as shared or not." TRUE )
 set( CMAKE_CXX_STANDARD 17 )
 
 # Add the local `cmake` directory to the CMake Module path.
