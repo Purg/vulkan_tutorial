@@ -17,6 +17,8 @@
 
 #include <iostream>
 
+#define LOG_INFO( msg ) std::cerr << "[INFO] " << msg << std::endl;
+
 int
 main()
 {
@@ -30,17 +32,21 @@ main()
   uint32_t extensionCount = 0;
   vkEnumerateInstanceExtensionProperties( nullptr, &extensionCount, nullptr );
 
-  std::cout << extensionCount << " extensions supported\n";
+  LOG_INFO( extensionCount << " extensions supported" );
 
   glm::mat4 matrix;
   glm::vec4 vec;
   (void) ( matrix * vec );
 
+  LOG_INFO( "Window should open and wait until closed by you (click the (X) "
+            "button.)" );
   while( !glfwWindowShouldClose( window ) )
   {
     glfwPollEvents();
   }
 
+  LOG_INFO( "The window should now be closed and the program should exit "
+            "without error." );
   glfwDestroyWindow( window );
 
   glfwTerminate();

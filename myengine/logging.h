@@ -9,8 +9,8 @@
 #define LOGGING_H
 
 #include <chrono>
+#include <cstring>
 #include <iostream>
-#include <string>
 
 // Not sure if this is going to cause a performance issue. If so maybe give up
 // width-saving
@@ -24,7 +24,6 @@ namespace myengine::logging {
 
 /**
  * Generate a string for time elapsed since the start of logging.
- * TODO: Implement in a CXX.
  *
  * Note that we specifically say "since the start of logging" as opposed to the
  * "start of the program."
@@ -36,7 +35,7 @@ namespace myengine::logging {
  * format:
  *   "HHHH:MM:SS.DDDDDD" (H=hours, M=minutes, S=seconds, D=decimal seconds).
  */
-char const* now_str();
+std::string now_str();
 
 } // namespace myengine::logging
 
@@ -44,32 +43,32 @@ char const* now_str();
 # define LOG_DEBUG( msg )
 #else
 # define LOG_DEBUG( msg ) \
-  do \
-  { \
+  do                      \
+  {                       \
     std::cerr   << "[DEBUG] [" << myengine::logging::now_str() << "] " \
-                << _LOG_LOC << " " << msg << std::endl; \
+                << _LOG_LOC << " " << msg << std::endl;                \
   } while( false )
 #endif
 
 #define LOG_INFO( msg ) \
-  do \
-  { \
+  do                    \
+  {                     \
     std::cerr   << "[ INFO] [" << myengine::logging::now_str() << "] " \
-                << _LOG_LOC << " " << msg << std::endl; \
+                << _LOG_LOC << " " << msg << std::endl;                \
   } while( false )
 
 #define LOG_WARN( msg ) \
-  do \
-  { \
+  do                    \
+  {                     \
     std::cerr   << "[ WARN] [" << myengine::logging::now_str() << "] " \
-                << _LOG_LOC << " " << msg << std::endl; \
+                << _LOG_LOC << " " << msg << std::endl;                \
   } while( false )
 
 #define LOG_ERROR( msg ) \
-  do \
-  { \
+  do                     \
+  {                      \
     std::cerr   << "[ERROR] [" << myengine::logging::now_str() << "] " \
-                << _LOG_LOC << " " << msg << std::endl; \
+                << _LOG_LOC << " " << msg << std::endl;                \
   } while( false )
 
 #endif //LOGGING_H
