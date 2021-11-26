@@ -1,18 +1,16 @@
-#include "glfw.hpp"
+#include "glfw.h"
 
 #include <GLFW/glfw3.h>
 
+namespace myengine::glfw {
 
-namespace myengine::glfw
-{
-
-std::vector<char const *>
+std::vector< char const* >
 glfw_get_required_vulkan_extensions()
 {
   uint32_t count = 0;
-  char const **name_array;
+  char const** name_array;
   name_array = glfwGetRequiredInstanceExtensions( &count );
-  return std::vector<char const *>( name_array, name_array + count );
+  return std::vector< char const* >( name_array, name_array + count );
 }
 
-}
+} // namespace myengine::glfw

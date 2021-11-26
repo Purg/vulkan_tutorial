@@ -880,9 +880,10 @@ private:
 
 private:
   // methods
-  /// Tutorial: Initialize GLFW window instance to use.
 
   /**
+   * Tutorial: Initialize GLFW window instance to use.
+   *
    * Initialize GLFW and return a window handle. This should only be called
    * once.
    *
@@ -894,9 +895,7 @@ private:
    *
    * @returns New GLFW window instance handle.
    */
-  [[nodiscard]]
-
-  GLFWwindow*
+  [[nodiscard]] GLFWwindow*
   initGlfwWindow() const
   {
     int glfw_init_ret = glfwInit();
@@ -926,9 +925,9 @@ private:
     return window;
   }
 
-  /// Tutorial: Initialize Vulkan components
-
   /**
+   * Tutorial: Initialize Vulkan components
+   *
    * @param [in] window The GLFW window instance handle to use for Vulkan
    * surface initialization.
    *
@@ -975,19 +974,14 @@ private:
     // Hardcoded `0` here "because we're only creating a single queue from this
     // family."
     // - I think this is tied to the `VkDeviceQueueCreateInfo.queueCount` value
-    // which is currently
-    //   set to `1` in `create_logical_device`.
+    //   which is currently set to `1` in `create_logical_device`.
     // - When the same queue family supports both graphics *and* surface
-    // presentation, then only one
-    //   queue is requested on the logical device. I presume this means that,
-    // by specifying 0 to
-    //   both of the following, we're storing the same queue handle for both
-    // graphics and present?
+    //   presentation, then only one queue is requested on the logical device.
+    //   I presume this means that, by specifying 0 to both of the following,
+    //   we're storing the same queue handle for both graphics and present?
     //   Is that OK? The tutorial seemed to basically recommend this by stating
-    // that we could
-    //   "prefer a physical device that supports drawing and presentation in
-    // the same queue for
-    //   improved performance".
+    //   that we could "prefer a physical device that supports drawing and
+    //   presentation in the same queue for improved performance".
     vkGetDeviceQueue( m_vk_logical_device,
                       qf_indices.graphicsFamily.value(), 0,
                       &m_vk_queue_graphics );
@@ -1034,8 +1028,7 @@ private:
     if( m_vk_logical_device )
     {
       // Logical device queues are implicitly cleaned up when their respective
-      // logical device is
-      // destroyed.
+      // logical device is destroyed.
       LOG_INFO( "Destroying logical device" );
       vkDestroyDevice( m_vk_logical_device, nullptr );
     }
@@ -1071,7 +1064,7 @@ int
 main()
 {
   HelloTriangleApp app;
-  // Lets not eat exceptions for now...
+  // Let's not eat exceptions for now...
   app.run();
   LOG_DEBUG( "Exiting successfully!" );
   return EXIT_SUCCESS;
