@@ -77,3 +77,12 @@ are explicitly specified with absolute paths.
 
 Additionally, the `LD_LIBRARY_PATH` and `VK_LAYER_PATH` environment variables
 are specified.
+* `VK_LAYER_PATH` should be set to the path to the appropriate
+  `etc/vulkan/explicit_layer.d/` directory.
+  * If using the LunarG SDK, this will be the 
+    `<SDK_DIR>/x86_64/etc/vulkan/explicit_layer.d/` path where `<SDK_DIR>` is
+    wherever you unpacked the SDK package.
+  * If using terminal, `export` as usual.
+    If running tool in CLion, for the appropriate target(s) go to the "Edit 
+    Configurations..." window and add `VK_LAYER_PATH=...` to the "Environment 
+    Variables" list. 

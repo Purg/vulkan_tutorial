@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
 
+#include <myengine/logging.h>
+
 namespace myengine::vulkan {
 
 std::vector< VkExtensionProperties >
@@ -59,8 +61,7 @@ bool
 check_instance_layer_support(
   std::vector< const char* > const& requested_layers )
 {
-  // move construction i think?
-  auto layer_vec( get_instance_layer_properties() );
+  auto layer_vec{ get_instance_layer_properties() };
   bool layer_found;
   for( auto const& req_layer : requested_layers )
   {
@@ -75,6 +76,7 @@ check_instance_layer_support(
     }
     if( !layer_found )
     {
+      LOG_WARN( "Requested instance layer not available: " << req_layer );
       return false;
     }
   }
