@@ -22,17 +22,13 @@
 #include <myengine/logging.h>
 #include <myengine/vulkan.h>
 
-#define VK_EXT_debug_utils_NAME "VK_EXT_debug_utils"
-
 struct QueueFamilyIndices
 {
   std::optional< uint32_t > graphicsFamily;
   std::optional< uint32_t > presentFamily;
 
   /// If this struct instance has all its optional fields filled.
-  [[nodiscard]]
-
-  bool
+  [[nodiscard]] bool
   is_complete() const
   {
     return ( graphicsFamily.has_value() && presentFamily.has_value() );
@@ -69,8 +65,12 @@ struct SwapChainSupportInfo
 std::vector< char const* > const&
 STATIC_INSTANCE_VALIDATION_LAYERS()
 {
-  static std::vector< char const* > const v =
-  { "VK_LAYER_KHRONOS_validation" };
+  static std::vector< char const* > const v = {
+#ifndef NDEBUG
+    // LunarG Validation Layer(s) -- requires SDK installed, VK_LAYER_PATH set
+    "VK_LAYER_KHRONOS_validation",
+#endif
+  };
   return v;
 }
 
@@ -94,18 +94,16 @@ STATIC_DEVICE_EXTENSIONS()
  * (e.g. want info+ logging, but just for validation types, etc.).
  */
 VKAPI_ATTR VkBool32 VKAPI_CALL
-vk_debug_messenger_logging_hook(
+vk_debug_messenger_logging_callback(
   VkDebugUtilsMessageSeverityFlagBitsEXT msg_severity,
   VkDebugUtilsMessageTypeFlagsEXT msg_type,
   VkDebugUtilsMessengerCallbackDataEXT const* p_callback_data,
   void* p_user_data )
 {
-  // msg_severity==INFO is actually pretty verbose. Not sure if INFO or VERBOSE
-  // is the "Debug" level
-  // but INFO seems to so far be the more verbose one. Skipping that one for
-  // the moment until
-  // something goes sideways.
-  if( msg_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT )
+  // ``[Verbose][type::General]`` messages look like they are extraneous.
+  // Ignoring those messages for now until informed otherwise?
+  if( ( msg_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT ) &&
+      ( msg_type & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT ) )
   {
     return VK_FALSE;
   }
@@ -116,8 +114,9 @@ vk_debug_messenger_logging_hook(
     vk::to_string( (vk::DebugUtilsMessageTypeFlagBitsEXT) msg_type );
   std::cerr     << "Khronos"
                 << "[" << s_severity << "]"
-                << "[type::" << s_type << "] "
-                << p_callback_data->pMessage << std::endl;
+                << "[type::" << s_type << "]"
+                << "[from::" << *(std::string*) p_user_data << "]"
+                << " " << p_callback_data->pMessage << std::endl;
   return VK_FALSE;
 }
 
@@ -129,41 +128,46 @@ vk_debug_messenger_logging_hook(
  */
 void
 vk_debug_messenger_create_info_fill(
-  VkDebugUtilsMessengerCreateInfoEXT& create_info )
+  VkDebugUtilsMessengerCreateInfoEXT& create_info,
+  char const* originator_name )
 {
   create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
   create_info.messageSeverity =
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+    VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
     VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-  // This dumps a ton of stuff...
-//  create_info.messageSeverity |=
-//    VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
   create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
                             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-  create_info.pfnUserCallback = vk_debug_messenger_logging_hook;
+  create_info.pfnUserCallback = vk_debug_messenger_logging_callback;
+  // Arbitrary pointer to some data that is given to the above hook on call.
+  // E.g. could be a reference to the `HelloTriangleApp`.
+  // Currently, setting to something that will differentiate between creators
+  // of this structure.
+  create_info.pUserData = new std::string{ originator_name };
 }
 
 /**
  * Create a new debug messenger handle for the given vulkan instance.
  *
- * This registers `vk_debug_messenger_logging_hook` for stuff.
+ * This registers `vk_debug_messenger_logging_callback` for stuff.
  *
- * @param [in] instance
- *   Vulkan instance handle to create the debug messenger against.
+ * @param [in] instance Vulkan instance handle to create the debug messenger
+ * against.
+ *
+ * @throws std::runtime_error Failed to get the creation function or create the
+ * debug messenger.
+ *
  * @returns Optionally created debug messenger opaque handle. This may be null
  *   if the appropriate extension function fails to dynamically load.
  *
  * @sa `create_vulkan_instance` for note on `[[ nodiscard ]]` attribute.
  */
 [[nodiscard]] VkDebugUtilsMessengerEXT
-vk_createDebugMessenger( VkInstance const& instance )
+vk_createDebugMessenger( VkInstance const& instance,
+                         VkDebugUtilsMessengerCreateInfoEXT const& create_info )
 {
-  // As long as I go in order and don't skip anything, gcc is OK...
-  VkDebugUtilsMessengerCreateInfoEXT create_info = {};
-  vk_debug_messenger_create_info_fill( create_info );
-
   auto create_func = (PFN_vkCreateDebugUtilsMessengerEXT)
                      vkGetInstanceProcAddr( instance,
                                             "vkCreateDebugUtilsMessengerEXT" );
@@ -213,19 +217,6 @@ vk_destroyDebugMessenger( VkInstance const& instance,
 ///////////////////////////////////////////////////////////////////////////////
 /// Application Functions
 
-/// App-specific validation layer addition logic
-void
-populate_app_validation_layers( std::vector< char const* >& validation_layers )
-{
-  // We only want to add validation layers if we're flagged for debug.
-#ifndef NDEBUG
-  auto p_validation_layers = &STATIC_INSTANCE_VALIDATION_LAYERS();
-  validation_layers.insert( validation_layers.end(),
-                            p_validation_layers->cbegin(),
-                            p_validation_layers->cend() );
-#endif
-}
-
 /**
  * Instantiate the Vulkan Instance
  *
@@ -257,97 +248,76 @@ populate_app_validation_layers( std::vector< char const* >& validation_layers )
  */
 [[nodiscard]] VkInstance
 create_vulkan_instance( char const* app_name, uint32_t app_version,
-                        uint32_t vk_api_version = VK_API_VERSION_1_1 )
+                        uint32_t vk_api_version = VK_API_VERSION_1_2 )
 {
-  // out-of-order designated initializer apparently unimplemented in g++, so
-  // not doing that here... sad...
+  // Information about this application/engine
   VkApplicationInfo app_info = {};
   app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+  app_info.pNext = nullptr;
   app_info.pApplicationName = app_name;
   app_info.applicationVersion = app_version;
   app_info.pEngineName = app_name;
   app_info.engineVersion = app_version;
-  // Maybe derive from external/CMake setting?
-  app_info.apiVersion = vk_api_version;
+  app_info.apiVersion = vk_api_version; // get from external/CMake setting?
 
-  // TODO: Could probably function up the create_info and
-  VkInstanceCreateInfo create_info = {};
-  create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  create_info.pApplicationInfo = &app_info;
+  // Before we create the VkInstanceCreateInfo to create the actual vulkan
+  // instance, we need to:
+  //   (1) gather global (a) layer and (b) extension names to be
+  //       enabled in the instance.
+  //   (2) Create a debug messenger if in debug-mode specifically for instance
+  //       creation/destruction since the "main" debug messenger is created
+  //       *after* instance creation.
 
+  // (1)(a) -- Global layers to use in vulkan instance.
+  std::vector< char const* > inst_layers;
+  inst_layers.insert( inst_layers.end(),
+                      STATIC_INSTANCE_VALIDATION_LAYERS().begin(),
+                      STATIC_INSTANCE_VALIDATION_LAYERS().end() );
+  if( !myengine::vulkan::check_instance_layer_support( inst_layers ) )
+  {
+    throw std::runtime_error( "One or more layers not reported as available." );
+  }
+
+  // (1)(b) -- Global extensions to use in vulkan instance.
   std::vector< char const* > inst_extensions;
-  std::vector< char const* > inst_validation_layers;
+  // GLFW requests some extensions from vulkan to work.
+  auto glfw_extensions = myengine::glfw::glfw_get_required_vulkan_extensions();
+  inst_extensions.insert( inst_extensions.end(),
+                          glfw_extensions.begin(), glfw_extensions.end() );
+#ifndef NDEBUG
+  // Add the known debugging utils extension when in debug mode.
+  // - Required for registering debug messenger in (2).
+  inst_extensions.push_back( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+#endif
+  if( !myengine::vulkan::check_instance_extension_support( inst_extensions ) )
+  {
+    throw std::runtime_error( "One or more extensions not reported as "
+                              "available." );
+  }
 
-  // Register "next" pointer to debug messenger if in debug mode /////////////
-  // This is to allow debug messenger to activate for instance
-  // creation/destruction since the "main" debug messenger is created *after*
-  // instance creation.
+  // (2) -- Debug messenger for instance creation/destruction.
 #ifndef NDEBUG
   LOG_DEBUG( "Creating debug messenger specifically for the Vulkan instance." );
   VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {};
-  vk_debug_messenger_create_info_fill( debug_create_info );
-  // linked-list insert at the head of the pNext chain.
-  debug_create_info.pNext = create_info.pNext;
+  vk_debug_messenger_create_info_fill( debug_create_info, "global" );
+#endif
+
+  // Information describing instance creation, including global
+  // extensions/layers.
+  VkInstanceCreateInfo create_info = {};
+  create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+#ifndef NDEBUG
   create_info.pNext = &debug_create_info;
 #endif
-
-  // Request extensions //////////////////////////////////////////////////////
-  // Enable the global extensions requested by the windowing system we're
-  // using (GLFW).
-  // NOTE: This part would get swapped out if moving to SDL.
-  for( auto const& ext_name :
-       myengine::glfw::glfw_get_required_vulkan_extensions() )
-  {
-    inst_extensions.push_back( ext_name );
-  }
-#ifndef NDEBUG
-  inst_extensions.push_back( VK_EXT_debug_utils_NAME );
-#endif
-
-  // Request validation layers ///////////////////////////////////////////////
-  // NDEBUG logic bundled within function
-  populate_app_validation_layers( inst_validation_layers );
-
-  // Enumerating/Checking requested extensions ///////////////////////////////
-  LOG_INFO( "Requesting Vulkan instance extensions:" );
-  for( auto const& ext_name : inst_extensions )
-  {
-    LOG_INFO( ".. '" << ext_name << "'" );
-  }
-  if( inst_extensions.empty() )
-  {
-    LOG_INFO( "(None)" );
-  }
-  if( !myengine::vulkan::check_instance_extension_support( inst_extensions ) )
-  {
-    throw std::runtime_error( "One or more instance extensions not reported "
-                              "as available." );
-  }
+  create_info.pApplicationInfo = &app_info;
+  create_info.enabledLayerCount = inst_layers.size();
+  create_info.ppEnabledLayerNames = inst_layers.data();
   create_info.enabledExtensionCount = inst_extensions.size();
   create_info.ppEnabledExtensionNames = inst_extensions.data();
 
-  // Enumerating/Checking requested validation layers ////////////////////////
-  LOG_INFO( "Requesting Vulkan instance validation layers:" );
-  for( auto const& layer_name : inst_validation_layers )
-  {
-    LOG_INFO( ".. '" << layer_name << "'" );
-  }
-  if( inst_validation_layers.empty() )
-  {
-    LOG_INFO( "(None)" );
-  }
-  if( !myengine::vulkan::check_instance_layer_support( inst_validation_layers ) )
-  {
-    throw std::runtime_error( "One or more instance validation layers not "
-                              "reported as available." );
-  }
-  create_info.enabledLayerCount = inst_validation_layers.size();
-  create_info.ppEnabledLayerNames = inst_validation_layers.data();
-
   // Actually create the instance...
   VkInstance instance;
-  VkResult result = vkCreateInstance( &create_info, nullptr,
-                                      &instance );
+  VkResult result = vkCreateInstance( &create_info, nullptr, &instance );
   if( result != VK_SUCCESS )
   {
     std::stringstream ss;
@@ -663,9 +633,7 @@ score_physical_device( VkPhysicalDevice const& device )
  * criterion.
  * @return A singular physical device handle to be used.
  */
-[[nodiscard]]
-
-VkPhysicalDevice
+[[nodiscard]] VkPhysicalDevice
 pick_physical_device( VkInstance const& instance, VkSurfaceKHR const& surface,
                       std::vector< char const* > const& device_extension_names = {} )
 {
@@ -791,7 +759,9 @@ create_logical_device( VkPhysicalDevice const& physical_device,
   // The tutorial recommends setting them anyway to support older vulkan
   // implementations. OK FINE...
   std::vector< char const* > device_validation_layers;
-  populate_app_validation_layers( device_validation_layers );
+  device_validation_layers.insert( device_validation_layers.end(),
+                                   STATIC_INSTANCE_VALIDATION_LAYERS().begin(),
+                                   STATIC_INSTANCE_VALIDATION_LAYERS().end() );
   d_create_info.enabledLayerCount = device_validation_layers.size();
   d_create_info.ppEnabledLayerNames = device_validation_layers.data();
   // Probably going to revisit this in a later tutorial chapter. Mentioned
@@ -850,16 +820,17 @@ public:
   void
   run()
   {
-    m_window = initGlfwWindow();
+    m_window = initGlfwWindow( m_win_width, m_win_height, APP_NAME );
     initVulkan( m_window );
     mainLoop();
     cleanUp();  // Call in destructor instead?
   }
 
 private:
-  // variables
+  // GLFW Window Stuff
   uint32_t m_win_height, m_win_width;
   GLFWwindow* m_window;
+
   // `VkInstance` *is* a pointer: to the empty `struct VkInstance_T` type.
   VkInstance m_vk_instance_handle;
   // Optional pointer to a debug messenger. May be null.
@@ -876,8 +847,6 @@ private:
   VkQueue m_vk_queue_present;
 
 private:
-  // methods
-
   /**
    * Tutorial: Initialize GLFW window instance to use.
    *
@@ -888,12 +857,19 @@ private:
    * multiple windows is
    * I guess a possibility.
    *
+   * @param width Pixel width of the window.
+   * @param height Pixel height of the window.
+   * @param name Title name of the window.
+   * @param resizable If the window should be resizable or not. Default to
+   * false.
+   *
    * @throws std::runtime_error Failed to initialize GLFW or create a window.
    *
    * @returns New GLFW window instance handle.
    */
-  [[nodiscard]] GLFWwindow*
-  initGlfwWindow() const
+  [[nodiscard]] static GLFWwindow*
+  initGlfwWindow( uint32_t width, uint32_t height, char const* name,
+                  bool resizable = false )
   {
     int glfw_init_ret = glfwInit();
     if( glfw_init_ret != GLFW_TRUE )
@@ -905,15 +881,22 @@ private:
 
     // Prevent creation of OpenGL context (because we're using Vulkan...)
     glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
-    // Disable window resizing.
-    glfwWindowHint( GLFW_RESIZABLE, GLFW_FALSE );
+    if( !resizable )
+    {
+      // Disable window resizing.
+      glfwWindowHint( GLFW_RESIZABLE, GLFW_FALSE );
+    }
 
     // To make full-screen, `monitor` will need to be specified and the
     // specified size will be the resolution, otherwise will be in windowed
     // mode.
     GLFWwindow* window = glfwCreateWindow(
-      m_win_width, m_win_height, HelloTriangleApp::APP_NAME,
-      nullptr, nullptr
+      // m_win_width, m_win_height, HelloTriangleApp::APP_NAME,
+      width, height, name,
+      // Explicit monitor to use for full-screen, null to use in windowed mode.
+      nullptr,
+      // Other window to share resources with.
+      nullptr
       );
     if( !window )
     {
@@ -948,8 +931,10 @@ private:
       create_vulkan_instance( APP_NAME, VK_MAKE_VERSION( 0, 1, 0 ) );
 #ifndef NDEBUG
     LOG_DEBUG( "Creating debug messenger." );
+    VkDebugUtilsMessengerCreateInfoEXT debug_create_info = {};
+    vk_debug_messenger_create_info_fill( debug_create_info, "instance" );
     m_vk_debug_messenger =
-      vk_createDebugMessenger( this->m_vk_instance_handle );
+      vk_createDebugMessenger( this->m_vk_instance_handle, debug_create_info );
 #endif
     m_vk_surface = create_vulkan_surface( m_vk_instance_handle, window );
     LOG_DEBUG( "Selecting physical device for use." );
@@ -1062,7 +1047,15 @@ main()
 {
   HelloTriangleApp app;
   // Let's not eat exceptions for now...
-  app.run();
+  try
+  {
+    app.run();
+  }
+  catch ( std::exception const& ex )
+  {
+    LOG_ERROR( "Application run failed with exception: " << ex.what() );
+    return EXIT_FAILURE;
+  }
   LOG_DEBUG( "Exiting successfully!" );
   return EXIT_SUCCESS;
 }

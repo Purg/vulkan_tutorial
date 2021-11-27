@@ -12,13 +12,16 @@ define_property( GLOBAL PROPERTY global_prop_project_cxx_flags
   )
 
 #
-# Helper function for adding compiler flags.
+# Helper function for checking the validity of a compiler flag, and then adding
+# it to a global list if the check is successful.
 #
-# Input flags are check for validity with `check_cxx_compiler_flag`.
+# Input flags are checked for validity with the CMake-included
+# `check_cxx_compiler_flag` functionality.
 #
-# If a list of flags are passed, the first valid flag is added. This is useful when you are looking
-# for the highest level of compiler support (e.g. `(-std=c++11 -std=c++0x)` will implicitly set the
-# flag for the highest level of support).
+# If a list of flags are passed, the first valid flag is added.
+# This is useful when you are looking for the highest level of compiler support
+# (e.g. `(-std=c++11 -std=c++0x)` will implicitly set the flag for the highest
+# level of support).
 #
 # If this check fails for all input flags, the flags are not added and a FATAL_ERROR message is
 # output.
@@ -40,10 +43,11 @@ function( project_check_compiler_flag )
 endfunction()
 
 
-# Descend into the appropriate flag checks
+# Descend into the appropriate flag checks based on the detected compiler being
+# used.
 #
-# Encapsulate sections into sub-modules if they grow much beyond a few lines or add additional
-# logic.
+# TODO: Encapsulate sections into sub-modules if they grow much beyond a few
+#       lines or add additional logic.
 if( CMAKE_CXX_COMPILER_ID MATCHES "MSVC" )
   message( WARNING "No explicit flag support for MSVC yet." )
 elseif( CMAKE_CXX_COMPILER_ID MATCHES "Clang" )

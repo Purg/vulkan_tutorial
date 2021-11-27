@@ -10,8 +10,7 @@ namespace myengine::glfw {
  *
  * @return Vector of required extensions by string name.
  */
-[[nodiscard]] std::vector< char const* >
-glfw_get_required_vulkan_extensions();
+[[nodiscard]] std::vector< char const* > glfw_get_required_vulkan_extensions();
 
 } // namespace myengine::glfw
 

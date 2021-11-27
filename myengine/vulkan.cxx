@@ -35,7 +35,8 @@ bool
 check_instance_extension_support(
   std::vector< char const* > const& requested_exts )
 {
-  // move construction i think?
+  LOG_DEBUG( "Checking availability of requested instance extensions:" );
+  LOG_VECTOR( DEBUG, requested_exts );
   auto prop_vec( get_instance_extension_properties() );
   bool ext_found;
   for( auto const& req_name : requested_exts )
@@ -51,6 +52,7 @@ check_instance_extension_support(
     }
     if( !ext_found )
     {
+      LOG_WARN( "Requested extension not available: " << req_name );
       return false;
     }
   }
@@ -61,6 +63,8 @@ bool
 check_instance_layer_support(
   std::vector< const char* > const& requested_layers )
 {
+  LOG_DEBUG( "Checking availability of requested instance layers:" );
+  LOG_VECTOR( DEBUG, requested_layers );
   auto layer_vec{ get_instance_layer_properties() };
   bool layer_found;
   for( auto const& req_layer : requested_layers )
@@ -76,7 +80,8 @@ check_instance_layer_support(
     }
     if( !layer_found )
     {
-      LOG_WARN( "Requested instance layer not available: " << req_layer );
+      LOG_WARN( "Requested layer not available: " << req_layer );
+      LOG_WARN( "Check VK_LAYER_PATH?" );
       return false;
     }
   }

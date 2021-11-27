@@ -13,7 +13,7 @@ typedef std::function< bool ( VkPhysicalDevice const& ) >
   physical_device_filter_t;
 
 /**
- * Get the available Vulkan instance extension properties.
+ * Get *all* available Vulkan global extension properties from the driver.
  *
  * @returns A vector of structs for extension properties currently available
  * for Vulkan instance creation.
@@ -22,7 +22,7 @@ std::vector< VkExtensionProperties >
 get_instance_extension_properties();
 
 /**
- * Get the available Vulkan instance layer properties.
+ * Get *all* available Vulkan global layer properties from the driver.
  *
  * @returns A vector of structs for layer properties currently available for
  * Vulkan instance creation.
@@ -32,7 +32,7 @@ get_instance_layer_properties();
 
 /**
  * Check the requested Vulkan instance extension names against the available
- * extensions reported by the Vulkan SDK.
+ * extensions reported by the Vulkan drive.
  *
  * @param [in] requested_exts
  *   Vector of string extension names to compare against available extensions.
@@ -47,7 +47,7 @@ check_instance_extension_support(
 
 /**
  * Check the requested Vulkan instance layer names against the available layers
- * reported by the Vulkan SDK.
+ * reported by the Vulkan driver.
  *
  * If additional validation layers are required, check your VK_LAYER_PATH
  * environment variable.

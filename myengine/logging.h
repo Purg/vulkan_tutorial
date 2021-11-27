@@ -71,4 +71,20 @@ std::string now_str();
                 << _LOG_LOC << " " << msg << std::endl;                \
   } while( false )
 
+/// @brief Log some vector of values to the given logging level macro.
+///
+/// This will log the items in the vector with a ".. " prefix unless there are
+/// no elements in the vector, in which case "(None)" is logged.
+#define LOG_VECTOR( level, vec ) \
+  do {                           \
+    for( auto const& v : ( vec ) ) \
+    {                            \
+      LOG_##level( ".. '" << v << "'" ); \
+    }                            \
+    if( ( vec ).empty() )        \
+    {                            \
+      LOG_##level( "(None)" );   \
+    }                            \
+  } while( false )
+
 #endif //LOGGING_H

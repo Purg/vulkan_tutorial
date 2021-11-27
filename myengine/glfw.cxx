@@ -10,7 +10,7 @@ glfw_get_required_vulkan_extensions()
   uint32_t count = 0;
   char const** name_array;
   name_array = glfwGetRequiredInstanceExtensions( &count );
-  return std::vector< char const* >( name_array, name_array + count );
+  return { name_array, name_array + count };
 }
 
 } // namespace myengine::glfw
