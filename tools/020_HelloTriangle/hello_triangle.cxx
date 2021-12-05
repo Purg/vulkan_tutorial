@@ -469,7 +469,7 @@ check_device_extensions_support( VkPhysicalDevice const& device,
   {
     required_extensions.erase( ext.extensionName );
   }
-  if( not required_extensions.empty() )
+  if( ! required_extensions.empty() )
   {
     VkPhysicalDeviceProperties p = {};
     vkGetPhysicalDeviceProperties( device, &p );
