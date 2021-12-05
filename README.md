@@ -2,7 +2,7 @@
 Code produced from following the Vulkan API tutorial here:
 
     https://vulkan-tutorial.com/
-    
+
 The code portion of this tutorial seems to be licensed CC0 1.0 Universal,
 if I'm reading the source repository's README section about licenses
 ([here](https://github.com/Overv/VulkanTutorial#license)).
@@ -29,13 +29,22 @@ Otherwise, adjust `Vulkan_INCLUDE_DIR` and `Vulkan_LIBRARY` to point to your
 desired SDK parts.
 
 ## GLFW (v3)
-Currently following the tutorial and using GLFW for providing windowing.
+Currently, following the tutorial and using GLFW for providing windowing.
 
 **CentOS 8**
 - Enable the PowerTools repository:
   `/etc/yum.repos.d/CentOS-PowerTools.repo`
   OR `sudo dnf config-manager --set-enabled PowerTools`
 - `sudo dnf install glfw-devel`
+
+**Ubuntu**
+- `sudo apt install libglfw3-dev`
+- This installation should be discoverable by CMake now.
+
+**Windows**
+- [Official Website](https://www.glfw.org/download.html)
+- Download 64-bit binaries.
+- Un-archive somewhere and remember the location.
 
 ## glm
 OpenGL math header-only library.
@@ -49,8 +58,17 @@ I hear eigen is a possible alternative?
   OR `sudo dnf config-manager --set-enabled PowerTools`
 - `sudo dnf install glm-devel`
 
+**Ubuntu**
+- `sudo apt install libglm-dev`
+- This installation should be discoverable by CMake now.
+
+**Windows**
+- [Download a release from the GitHub Releases page](
+  https://github.com/g-truc/glm/releases)
+- Add the option `-Dglm_DIR:PATH=` setting the path to the unarchived location.
+
 # Building
-Create an out of source directory (or `build` sub-directory) for build products.
+Create an out of source directory (or `build` subdirectory) for build products.
 Then to the usual CMake thing:
 ```bash
 cd build
@@ -60,7 +78,6 @@ make -j$(nproc)
 
 You may have to point `NOT-FOUND` required packages to their appropriate locations if
 you have custom locations or using local LunarG Vulkan SDK binaries.
-
 
 # CLion Notes
 **Toolchain**:
@@ -79,10 +96,16 @@ Additionally, the `LD_LIBRARY_PATH` and `VK_LAYER_PATH` environment variables
 are specified.
 * `VK_LAYER_PATH` should be set to the path to the appropriate
   `etc/vulkan/explicit_layer.d/` directory.
-  * If using the LunarG SDK, this will be the 
+  * If using the LunarG SDK, this will be the
     `<SDK_DIR>/x86_64/etc/vulkan/explicit_layer.d/` path where `<SDK_DIR>` is
     wherever you unpacked the SDK package.
   * If using terminal, `export` as usual.
-    If running tool in CLion, for the appropriate target(s) go to the "Edit 
-    Configurations..." window and add `VK_LAYER_PATH=...` to the "Environment 
-    Variables" list. 
+    If running tool in CLion, for the appropriate target(s) go to the "Edit
+    Configurations..." window and add `VK_LAYER_PATH=...` to the "Environment
+    Variables" list.
+
+## Windows Terminal
+It is important to open the correct command line terminal on Windows to match
+the same toolchain architecture being used.
+E.g. When set to "amd64" the "x64 Native Tools" terminal must be opened.
+Otherwise, inappropriate tools and libraries are exposed and errors will ensue.

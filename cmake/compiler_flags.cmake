@@ -49,9 +49,11 @@ endfunction()
 # TODO: Encapsulate sections into sub-modules if they grow much beyond a few
 #       lines or add additional logic.
 if( CMAKE_CXX_COMPILER_ID MATCHES "MSVC" )
-  message( WARNING "No explicit flag support for MSVC yet." )
+  message( STATUS "No explicit flag support for MSVC yet." )
+  project_check_compiler_flag( /W3 )
+  project_check_compiler_flag( /MP )
 elseif( CMAKE_CXX_COMPILER_ID MATCHES "Clang" )
-  message( WARNING "No explicit flag support for Clang yet." )
+  message( Status "No explicit flag support for Clang yet." )
 elseif( CMAKE_CXX_COMPILER_ID MATCHES "GNU" )
   project_check_compiler_flag( -Wall )
 endif()
