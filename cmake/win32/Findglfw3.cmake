@@ -17,7 +17,7 @@ else()
   message( FATAL_ERROR "Missing logic to handle MSVC version: ${MSVC_VERSION}" )
 endif()
 find_library( glfw3_LIBRARY glfw3
-  HINT "${glfw3_DIR}"
+  HINTS "${glfw3_DIR}"
   PATH_SUFFIXES "${glfw3_PATH_SUFFIXES}"
   REQUIRED )
 
