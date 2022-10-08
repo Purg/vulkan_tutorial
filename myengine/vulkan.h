@@ -6,6 +6,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include <myengine/myengine_export.h>
+
 namespace myengine::vulkan {
 
 /// Type for a function that makes some decision on an input physical device.
@@ -19,6 +21,7 @@ typedef std::function< bool ( VkPhysicalDevice const& ) >
  * for Vulkan instance creation.
  */
 std::vector< VkExtensionProperties >
+MYENGINE_EXPORT
 get_instance_extension_properties();
 
 /**
@@ -28,6 +31,7 @@ get_instance_extension_properties();
  * Vulkan instance creation.
  */
 std::vector< VkLayerProperties >
+MYENGINE_EXPORT
 get_instance_layer_properties();
 
 /**
@@ -42,6 +46,7 @@ get_instance_layer_properties();
  * @sa get_instance_extension_properties
  */
 bool
+MYENGINE_EXPORT
 check_instance_extension_support(
   std::vector< char const* > const& requested_exts );
 
@@ -60,6 +65,7 @@ check_instance_extension_support(
  * @sa get_instance_layer_properties
  */
 bool
+MYENGINE_EXPORT
 check_instance_layer_support(
   std::vector< char const* > const& requested_layers );
 
@@ -80,6 +86,7 @@ check_instance_layer_support(
  * the give `filter` function with a `true` value.s
  */
 std::vector< VkPhysicalDevice >
+MYENGINE_EXPORT
 get_physical_devices( VkInstance const& instance,
                       physical_device_filter_t const& filter = nullptr );
 
@@ -92,6 +99,7 @@ get_physical_devices( VkInstance const& instance,
  * `vkGetPhysicalDeviceQueueFamilyProperties`.
  */
 std::vector< VkQueueFamilyProperties >
+MYENGINE_EXPORT
 get_device_queue_family_properties( VkPhysicalDevice const& device );
 
 } // namespace myengine::vulkan

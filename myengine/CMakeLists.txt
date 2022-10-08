@@ -10,7 +10,7 @@ set( myengine_headers_public
 source_group( "Header Files\\Public" FILES ${myengine_headers_public} )
 install(
   FILES ${myengine_headers_public}
-  DESTINATION include/myegine
+  DESTINATION include/myengine
 )
 
 ####################################################################################################
@@ -22,11 +22,13 @@ set( myengine_source
 
 ####################################################################################################
 # The library target
-add_library(
-  myengine
+add_library( myengine
   ${myengine_headers_public}
   ${myengine_source}
 )
 target_link_libraries( myengine
   PUBLIC glm glfw Vulkan::Vulkan
   )
+
+include( GenerateExportHeader )
+generate_export_header( myengine )

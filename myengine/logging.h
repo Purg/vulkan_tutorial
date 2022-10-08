@@ -12,6 +12,8 @@
 #include <cstring>
 #include <iostream>
 
+#include <myengine/myengine_export.h>
+
 // Not sure if this is going to cause a performance issue. If so maybe give up
 // width-saving
 // convenience for the simple use of __FILE__?
@@ -35,7 +37,7 @@ namespace myengine::logging {
  * format:
  *   "HHHH:MM:SS.DDDDDD" (H=hours, M=minutes, S=seconds, D=decimal seconds).
  */
-std::string now_str();
+std::string MYENGINE_EXPORT now_str();
 
 } // namespace myengine::logging
 

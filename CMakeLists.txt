@@ -30,6 +30,7 @@ message( STATUS "VK_LAYER_PATH: ${VK_LAYER_PATH}" )
 
 # Include project header files within sub-directories.
 include_directories( "${CMAKE_CURRENT_SOURCE_DIR}" )
+include_directories( "${CMAKE_CURRENT_BINARY_DIR}" )
 
 # Descend into the source
 add_subdirectory( myengine )
