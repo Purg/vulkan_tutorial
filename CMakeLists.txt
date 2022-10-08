@@ -13,7 +13,7 @@ endif( WIN32 )
 include( compiler_flags )
 
 # Package Dependencies
-# - Next steps: learn from KWIVER, create different    "depends" cmake modules
+# - Next steps: learn from KWIVER, create different "depends" cmake modules
 #   to encapsulate package specific include behavior instead of everything just
 #   being right here, which is really messy.
 find_package( Vulkan REQUIRED )

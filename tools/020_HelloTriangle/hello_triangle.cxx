@@ -310,9 +310,9 @@ create_vulkan_instance( char const* app_name, uint32_t app_version,
   create_info.pNext = &debug_create_info;
 #endif
   create_info.pApplicationInfo = &app_info;
-  create_info.enabledLayerCount = inst_layers.size();
+  create_info.enabledLayerCount = (uint32_t)inst_layers.size();
   create_info.ppEnabledLayerNames = inst_layers.data();
-  create_info.enabledExtensionCount = inst_extensions.size();
+  create_info.enabledExtensionCount = (uint32_t)inst_extensions.size();
   create_info.ppEnabledExtensionNames = inst_extensions.data();
 
   // Actually create the instance...
@@ -752,7 +752,7 @@ create_logical_device( VkPhysicalDevice const& physical_device,
   // Creation info struct for the logical device.
   VkDeviceCreateInfo d_create_info = {};
   d_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  d_create_info.queueCreateInfoCount = q_create_info_vec.size();
+  d_create_info.queueCreateInfoCount = (uint32_t)q_create_info_vec.size();
   d_create_info.pQueueCreateInfos = q_create_info_vec.data();
 
   // Device specific layers are currently deprecated as of at least vulkan 1.1.
@@ -762,11 +762,11 @@ create_logical_device( VkPhysicalDevice const& physical_device,
   device_validation_layers.insert( device_validation_layers.end(),
                                    STATIC_INSTANCE_VALIDATION_LAYERS().begin(),
                                    STATIC_INSTANCE_VALIDATION_LAYERS().end() );
-  d_create_info.enabledLayerCount = device_validation_layers.size();
+  d_create_info.enabledLayerCount = (uint32_t)device_validation_layers.size();
   d_create_info.ppEnabledLayerNames = device_validation_layers.data();
   // Probably going to revisit this in a later tutorial chapter. Mentioned
   // "VK_KHR_swapchain".
-  d_create_info.enabledExtensionCount = device_extension_names.size();
+  d_create_info.enabledExtensionCount = (uint32_t)device_extension_names.size();
   d_create_info.ppEnabledExtensionNames = device_extension_names.data();
   // The features
   d_create_info.pEnabledFeatures = &device_features;
@@ -782,6 +782,25 @@ create_logical_device( VkPhysicalDevice const& physical_device,
     throw std::runtime_error( ss.str() );
   }
   return logical_device;
+}
+
+/**
+ * Method to sleep until a specific time point specified by the a clock.
+ *
+ * This was investigated while experimenting with FPS-locking the main loop. I
+ * wasn't successful yet because I'm dumb.
+ *
+ * @tparam CLOCK Clock type, usually implicitly determined.
+ * @tparam DURATION Duration type, usually implicitly determined.
+ * @param tp The time point to wait until.
+ */
+template< class CLOCK, class DURATION >
+void
+sleep_until( std::chrono::time_point<CLOCK, DURATION> tp )
+{
+  using namespace std::chrono_literals;
+  std::this_thread::sleep_until(tp - 10us);
+  while( tp >= CLOCK::now() );
 }
 
 /*******************************************************************************
@@ -975,31 +994,9 @@ private:
   mainLoop()
   {
     LOG_DEBUG( "Starting main loop..." );
-
-    std::chrono::steady_clock::time_point
-      last_t = std::chrono::steady_clock::now(),
-      t = {};
-    double avg_fps = 0, now_fps = 0;
-    uint64_t avg_window = 120;
-
     while( !glfwWindowShouldClose( m_window ) )
     {
-      // Probably take this out once we're actually doing anything?
-      // Sleep optionally based on a remaining delta to "frame cap"?
-      std::this_thread::sleep_for( std::chrono::nanoseconds( 8333333 ) );
-      t = std::chrono::steady_clock::now();
-
       glfwPollEvents();
-
-      // exp: FPS logging
-      auto delta_nano = std::chrono::duration_cast< std::chrono::nanoseconds >(
-        t - last_t ).count();
-      last_t = t;
-
-      now_fps = ( 1.e9 / delta_nano );
-      if( avg_fps == 0 ) { avg_fps = now_fps; }
-      avg_fps = ( ( avg_fps * ( avg_window - 1. ) ) + now_fps ) / avg_window;
-//      LOG_DEBUG( "!!! FPS: " << now_fps << "(avg: " << avg_fps << ")" );
     }
     LOG_DEBUG( "Exited main loop" );
   }

@@ -30,7 +30,7 @@ now_str()
   seconds = seconds % 3600 % 60;
 
   char buf[ 18 ];  // HHHH:MM:SS.DDDDDD<NULL>
-  snprintf( buf, 18, "%04ld:%02ld:%02ld.%06ld", hours, minutes, seconds,
+  snprintf( buf, 18, "%04lld:%02lld:%02lld.%06lld", hours, minutes, seconds,
             micro );
   return { buf };
 }
