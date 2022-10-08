@@ -16,7 +16,13 @@ if( MSVC_VERSION GREATER_EQUAL "1930" AND MSVC_VERSION LESS "1940" )
 else()
   message( FATAL_ERROR "Missing logic to handle MSVC version: ${MSVC_VERSION}" )
 endif()
-find_library( glfw3_LIBRARY glfw3
+# On Windows, the library name to seek is different depending on whether we are
+# building statically ("glfw3") or shared ("glfw3dll").
+set( glfw3_lib_name "glfw3" )
+if( MSVC AND BUILD_SHARED_LIBS )
+  set( glfw3_lib_name "glfw3dll" )
+endif()
+find_library( glfw3_LIBRARY "${glfw3_lib_name}"
   HINTS "${glfw3_DIR}"
   PATH_SUFFIXES "${glfw3_PATH_SUFFIXES}"
   REQUIRED )

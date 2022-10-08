@@ -46,6 +46,11 @@ Currently, following the tutorial and using GLFW for providing windowing.
 - Download 64-bit binaries.
 - Un-archive somewhere and remember the location.
 
+On Windows, there is a separate .lib specifically for shared DLL linkage.
+If switching a build from static to shared, and vice versa, the glfw3 lib
+path will need to be cleared and the CMake will need to be reconfigured/
+generated in
+
 ## glm
 OpenGL math header-only library.
 Vulkan does not provide any on-build mathematics libraries or functions so we're using this to

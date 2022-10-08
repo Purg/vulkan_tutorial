@@ -29,6 +29,12 @@ add_library( myengine
 target_link_libraries( myengine
   PUBLIC glm glfw Vulkan::Vulkan
   )
+set_target_properties( myengine
+  PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/"
+  )
 
 include( GenerateExportHeader )
 generate_export_header( myengine )
